@@ -60,6 +60,14 @@ local CONFIG = {
     -- resets, mask-hide command) from the CSV; they still print to the console.
     verboseLog = false,
 
+    -- Mouse lock: while the gray mask covers the tabs (setup, prompt, delay), mouse
+    -- movement, clicks and scrolling are blocked so the pointer stays at the
+    -- calibrated start point. It is released the instant the mask is removed.
+    -- Safety: the lock auto-releases after mouseLockMaxSeconds, and
+    -- Ctrl+Alt+Cmd+Esc / Ctrl+Alt+Cmd+R also release it.
+    lockMouseDuringPrompt = true,
+    mouseLockMaxSeconds = 20.0,
+
     -- Where prerecorded target prompts are stored.
     audioDirectory = hs.configdir .. "/orlando_audio",
 
@@ -208,6 +216,8 @@ local state = {
     timeoutTimer = nil,
     pollTimer = nil,
     nextTrialTimer = nil,
+    lockWatchdog = nil,
+    mouseTap = nil,
     lastTitle = nil,
     selectionCount = 0,
     trialRec = nil,
@@ -520,6 +530,37 @@ local function resetMouse()
     return true, nil
 end
 
+local function unlockMouse()
+    local wasLocked = state.mouseTap ~= nil
+    if state.mouseTap then
+        state.mouseTap:stop()
+        state.mouseTap = nil
+    end
+    stopTimer("lockWatchdog")
+    if wasLocked then logEvent("MOUSE_UNLOCKED", "Pointer released") end
+end
+
+local function lockMouse()
+    if not CONFIG.lockMouseDuringPrompt then return end
+    unlockMouse()
+
+    local t = hs.eventtap.event.types
+    state.mouseTap = hs.eventtap.new({
+        t.mouseMoved, t.leftMouseDragged, t.rightMouseDragged, t.otherMouseDragged,
+        t.leftMouseDown, t.leftMouseUp, t.rightMouseDown, t.rightMouseUp,
+        t.scrollWheel,
+    }, function() return true end) -- returning true swallows the event
+    state.mouseTap:start()
+
+    stopTimer("lockWatchdog")
+    state.lockWatchdog = hs.timer.doAfter(CONFIG.mouseLockMaxSeconds, function()
+        state.lockWatchdog = nil
+        logEvent("MOUSE_LOCK_WATCHDOG", "Lock auto-released after time limit")
+        unlockMouse()
+    end)
+    logEvent("MOUSE_LOCKED", "Pointer frozen at start point")
+end
+
 ------------------------------------------------------------
 -- 6. TAB-REGION MASK
 ------------------------------------------------------------
@@ -743,6 +784,7 @@ local function revealCurrentTrial()
 
     logEvent("REVEAL_COMMAND", "Mask hide requested")
     hideMask()
+    unlockMouse()
 
     -- The authoritative start timestamp is still the FIRST VIDEO FRAME in OBS
     -- where the tab interface is visible. This log is only an auxiliary marker.
@@ -804,6 +846,7 @@ local function playCurrentPrompt()
     local path = CONFIG.audioDirectory .. "/" .. trial.audio
     local sound = hs.sound.getByFile(path)
     if not sound then
+        unlockMouse()
         state.phase = "IDLE"
         logEvent("ERROR", "Audio file not found: " .. path)
         researcherAlert("Audio missing: " .. trial.audio)
@@ -820,6 +863,7 @@ local function playCurrentPrompt()
 
         if not completed then
             if state.phase == "PROMPT" then
+                unlockMouse()
                 state.phase = "IDLE"
                 logEvent("PROMPT_INTERRUPTED", trial.audio)
                 researcherAlert("Prompt interrupted")
@@ -894,6 +938,7 @@ prepareAndRunCurrentTrial = function()
         logEvent("ERROR", mouseErr)
         return
     end
+    lockMouse()
 
     stopTimer("setupTimer")
     state.setupTimer = hs.timer.doAfter(CONFIG.setupSettleSeconds, function()
@@ -976,6 +1021,7 @@ end
 local function abortAndRetrySameTrial()
     if state.phase == "SESSION_COMPLETE" then return end
     recordAbortIfRunning()
+    unlockMouse()
     logEvent("TRIAL_ABORT_RETRY", "Same trial will be rerun")
     stopAllTimers()
     stopSound()
@@ -1121,6 +1167,7 @@ hs.hotkey.bind(MODS, "escape", function()
     hideMask()
     calib.orientation, calib.topLeft = nil, nil
     recordAbortIfRunning()
+    unlockMouse()
     state.phase = "IDLE"
     state.revealEpoch = nil
     logEvent("EMERGENCY_UNMASK", "Researcher emergency hotkey")
