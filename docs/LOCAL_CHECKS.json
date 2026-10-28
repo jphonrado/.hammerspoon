@@ -1,0 +1,289 @@
+{
+  "passed": true,
+  "runtime": "Lua 5.4 via development-only Python lupa",
+  "package_root": "C:\\Users\\King Mejia\\.codex\\.chatgpt-projects\\g-p-6abfa63729a88191a0572dd74dca202f\\output\\Hammerspoon-Study-Controller",
+  "syntax": [
+    {
+      "file": "init.lua",
+      "passed": true,
+      "error": null
+    },
+    {
+      "file": "study/allocation.lua",
+      "passed": true,
+      "error": null
+    },
+    {
+      "file": "study/config.lua",
+      "passed": true,
+      "error": null
+    },
+    {
+      "file": "study/controller.lua",
+      "passed": true,
+      "error": null
+    },
+    {
+      "file": "study/materials.lua",
+      "passed": true,
+      "error": null
+    },
+    {
+      "file": "study/model.lua",
+      "passed": true,
+      "error": null
+    },
+    {
+      "file": "study/storage.lua",
+      "passed": true,
+      "error": null
+    },
+    {
+      "file": "tests/controller_spec.lua",
+      "passed": true,
+      "error": null
+    },
+    {
+      "file": "tests/integration_spec.lua",
+      "passed": true,
+      "error": null
+    },
+    {
+      "file": "tests/model_spec.lua",
+      "passed": true,
+      "error": null
+    }
+  ],
+  "suites": [
+    {
+      "suite": "model",
+      "passed": true,
+      "case_count": 12
+    },
+    {
+      "suite": "integration",
+      "passed": true,
+      "case_count": 21,
+      "cases": [
+        {
+          "error": "nil",
+          "name": "all four paper groups complete exactly 24 scheduled entries with verified identity",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "paper condition orders and six-trial schedules are preserved",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "frozen allocation has four per group, permuted blocks, balanced familiarization",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "interruption in PROMPT persists exposure and consumes exactly once",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "interruption in WAIT_REVEAL persists exposure and consumes exactly once",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "interruption in RUNNING persists exposure and consumes exactly once",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "unexposed setup failure retains the planned entry without an outcome",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "break during outcome hold preserves one completion and resumes at the next entry",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "zero, false, missing values and quoted event text survive CSV round trip",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "manual completion and timeout never fill final video-coded measures",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "malformed existing log header is rejected and records are not silently appended",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "write failure fails closed and retains an active-session guard",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "fresh reload is blocked instead of replaying an active or interrupted participant",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "main participant completion cannot be silently collected a second time",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "main session cannot be finalized before all scheduled entries have an outcome",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "clean test close permits a new unique run but never reuses an existing session path",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "exposure cannot be erased through cancelled_unexposed",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "duplicate terminal outcome is rejected without a second video-coding row",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "malformed participant markers fail closed and are preserved",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "unsafe identifiers and invalid allocation groups are rejected before creating runs",
+          "passed": true
+        },
+        {
+          "error": "nil",
+          "name": "non-finite observations are rejected rather than written as valid numbers",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "suite": "controller",
+      "passed": true,
+      "case_count": 22,
+      "cases": [
+        {
+          "passed": true,
+          "name": "adapter blocks navigation in ready and outcome hold"
+        },
+        {
+          "passed": true,
+          "name": "adapter partial prompt pause consumes and cannot auto replay"
+        },
+        {
+          "passed": true,
+          "name": "adapter missing audio before exposure retains scheduled entry"
+        },
+        {
+          "passed": true,
+          "name": "adapter verifies neutral activation with a bounded wait"
+        },
+        {
+          "passed": true,
+          "name": "adapter catches moved window before prompt exposure"
+        },
+        {
+          "passed": true,
+          "name": "adapter immediate post-reveal selection uses preverified neutral baseline"
+        },
+        {
+          "passed": true,
+          "name": "adapter timeout without selection leaves final outcomes for video"
+        },
+        {
+          "passed": true,
+          "name": "adapter checkpoint failure cannot acquire a new fatal input lock"
+        },
+        {
+          "passed": true,
+          "name": "adapter verified-start event failure cannot play the prompt"
+        },
+        {
+          "passed": true,
+          "name": "adapter pause after session completion never writes closed records"
+        },
+        {
+          "passed": true,
+          "name": "adapter ending an already completed session cannot mark it interrupted"
+        },
+        {
+          "passed": true,
+          "name": "adapter completes 24 trial outcomes for each of the four allocation groups"
+        },
+        {
+          "passed": true,
+          "name": "adapter rejects stale mask dimensions in either orientation"
+        },
+        {
+          "passed": true,
+          "name": "adapter rejects invalid group before creating session records"
+        },
+        {
+          "passed": true,
+          "name": "adapter main mode remains disabled until explicitly configured"
+        },
+        {
+          "passed": true,
+          "name": "adapter rejects main mode with unverified recording settings"
+        },
+        {
+          "passed": true,
+          "name": "adapter rejects an unknown main participant without asking for a random group"
+        },
+        {
+          "passed": true,
+          "name": "adapter main participant obtains its frozen roster group and practice order"
+        },
+        {
+          "passed": true,
+          "name": "unexpected control exception releases input and guards interrupted session"
+        },
+        {
+          "passed": true,
+          "name": "unexpected timer callback error cannot leave input locked"
+        },
+        {
+          "passed": true,
+          "name": "unexpected audio completion error invokes protected cleanup"
+        },
+        {
+          "passed": true,
+          "name": "loader chains unrelated shutdown once and does not retain stale HCI hooks"
+        }
+      ]
+    }
+  ],
+  "exported_simulated_examples": null,
+  "native_macos_tested": false,
+  "limitations": [
+    "No real Chrome tabs, Hammerspoon APIs, input hooks or OBS capture were exercised.",
+    "Passing portable checks does not establish study-device readiness."
+  ],
+  "source_hashes": {
+    "init.lua": "f467432bf90edcf3a570f57d916773896c13ace2e818a24064fc90916fee4855",
+    "study/allocation.lua": "d64c140e28d2ed34e4cf4b52d17bb954dab943f5f70aab6983e35c939271b6e8",
+    "study/config.lua": "62472bfb60ed2422ef3aab4f6427bd41f64986c7090c719faafac5581c8e8311",
+    "study/controller.lua": "5a041bf1bbbdaef9cdf9e55133f01e7b504898b6417acf7e3c0f5defa7cb7aad",
+    "study/materials.lua": "cc9cafb4f60477dd7e742e74dbfa1b759b6038b2d3c52b987223068e1653e280",
+    "study/model.lua": "b034b4c9211d2a71d0fe76c462b7b176217640cf668d67d4a7bda8166a2fde10",
+    "study/storage.lua": "51f62826049eeaf98fe988d567b5b75e7e5e36b1aa4b289db1e31eaf3add0c15",
+    "tests/controller_spec.lua": "070c89314b65f6f49804f77a46129a8d2abd4576b314c6e2ac4cf4b0962d95ef",
+    "tests/integration_spec.lua": "02f1ee284b10134afda87fe9803f559cfeb1efc66cde2071a531443fd1073c72",
+    "tests/model_spec.lua": "a95a8b11422a6113b4bd158798f17ce88a3f22b945e2309f54483fd6ff30cd7d"
+  }
+}

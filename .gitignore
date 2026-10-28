@@ -1,0 +1,9 @@
+records/*
+!records/README.md
+.dev-cache/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Legacy generated logs; tracked historical files are preserved.
+orlando_logs/
