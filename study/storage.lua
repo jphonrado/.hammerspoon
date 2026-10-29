@@ -102,8 +102,15 @@ local function writeText(path, text)
     return true
 end
 local function atomicJSON(hs, path, value)
-    local ok, encoded = pcall(hs.json.encode, value, true)
-    if not ok or type(encoded) ~= "string" then return err("Cannot encode record: " .. path) end
+    local parent = path:match("^(.*)/[^/]+$")
+    if parent and not attrs(hs, parent) then
+        return err("Record directory is missing; the active run may have been deleted: " .. parent)
+    end
+    local ok, encoded, encodeError = pcall(hs.json.encode, value, true)
+    if not ok then return err("Cannot encode record: " .. path .. ": " .. tostring(encoded)) end
+    if type(encoded) ~= "string" then
+        return err("Cannot encode record: " .. path .. ": " .. tostring(encodeError or "encoder returned no data"))
+    end
     tempSerial = tempSerial + 1
     local suffix = ".tmp-" .. tostring(os.time()) .. "-" .. tostring(tempSerial)
     local temporary = path .. suffix

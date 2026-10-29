@@ -6,6 +6,18 @@ local Model = require("study.model")
 local Storage = require("study.storage")
 local M = {}
 local function copy(t) local r={} for k,v in pairs(t or {}) do r[k]=v end return r end
+local function point(value)
+  if type(value) ~= "table" and type(value) ~= "userdata" then return nil end
+  local x,y=tonumber(value.x),tonumber(value.y)
+  if not x or not y then return nil end
+  return {x=x,y=y}
+end
+local function frame(value)
+  if type(value) ~= "table" and type(value) ~= "userdata" then return nil end
+  local x,y,w,h=tonumber(value.x),tonumber(value.y),tonumber(value.w),tonumber(value.h)
+  if not x or not y or not w or not h then return nil end
+  return {x=x,y=y,w=w,h=h}
+end
 local function sameFrame(a,b,tolerance)
   if not a or not b then return false end
   for _,k in ipairs({"x","y","w","h"}) do
@@ -71,8 +83,8 @@ end
 function M:checkpoint()
   if not self.store or not self.model then return true end
   local s=self.model:snapshot()
-  s.window_id=self.windowID; s.approved_frame=self.approvedFrame
-  s.pointer_start=self.hs.settings.get(self.cfg.settingsPrefix.."pointer")
+  s.window_id=self.windowID; s.approved_frame=frame(self.approvedFrame)
+  s.pointer_start=point(self.hs.settings.get(self.cfg.settingsPrefix.."pointer"))
   s.mask_calibrations={
     H=self.hs.settings.get(self.cfg.settingsPrefix.."mask_H"),
     V=self.hs.settings.get(self.cfg.settingsPrefix.."mask_V"),
@@ -193,13 +205,15 @@ function M:captureFrame()
   local app=self.hs.application.get(self.cfg.chromeAppName)
   local win=app and app:mainWindow()
   if not win then return self:notice("Open the dedicated Chrome study window") end
-  self.windowID=win:id();self.approvedFrame=copy(win:frame())
+  self.windowID=win:id();self.approvedFrame=frame(win:frame())
   self.hs.settings.set(self.cfg.settingsPrefix.."frame",self.approvedFrame)
   self:notice("Study window/frame saved. Calibrate H and V masks in this same frame.")
 end
 function M:capturePointer()
   if not self:inSetup() then return self:notice("Enter Setup before calibration") end
-  self.hs.settings.set(self.cfg.settingsPrefix.."pointer",self.hs.mouse.absolutePosition())
+  local position=point(self.hs.mouse.absolutePosition())
+  if not position then return self:notice("Could not read a serializable pointer position") end
+  self.hs.settings.set(self.cfg.settingsPrefix.."pointer",position)
   self:notice("Common absolute pointer position saved")
 end
 function M:calibrateMask(orientation)

@@ -229,6 +229,17 @@ test("malformed existing log header is rejected and records are not silently app
     assert(not store:checkpoint({phase = "READY"}), "Storage must remain stopped after failure")
 end)
 
+test("deleted run directory is reported instead of attempting a stale checkpoint", function()
+    local store = makeStore("deleted-run")
+    for _, name in ipairs({"checkpoint.json", "events.csv", "trials_aux.csv", "video_coding.csv"}) do
+        assert(os.remove(store.path .. "/" .. name))
+    end
+    assert(os.remove(store.path .. "/session.json"))
+    assert(TEST_BRIDGE.rmdir(store.path))
+    local ok, message = store:checkpoint({phase = "READY"})
+    assert(not ok and tostring(message):find("Record directory is missing", 1, true))
+end)
+
 test("write failure fails closed and retains an active-session guard", function()
     local store, base = makeStore("write-failure")
     TEST_FAIL_OPEN_PREFIX = store.path

@@ -1,7 +1,7 @@
 {
   "passed": true,
   "runtime": "Lua 5.4 via development-only Python lupa",
-  "package_root": "C:\\Users\\King Mejia\\.codex\\.chatgpt-projects\\g-p-6abfa63729a88191a0572dd74dca202f\\output\\Hammerspoon-Automated-Controller",
+  "package_root": "/Users/jphonrado/.hammerspoon",
   "syntax": [
     {
       "file": "init.lua",
@@ -63,117 +63,122 @@
     {
       "suite": "integration",
       "passed": true,
-      "case_count": 22,
+      "case_count": 23,
       "cases": [
         {
-          "error": "nil",
           "passed": true,
-          "name": "all four paper groups complete exactly 24 scheduled entries with verified identity"
+          "name": "all four paper groups complete exactly 24 scheduled entries with verified identity",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "paper condition orders and six-trial schedules are preserved"
+          "name": "paper condition orders and six-trial schedules are preserved",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "frozen allocation has four per group, permuted blocks, balanced familiarization"
+          "name": "frozen allocation has four per group, permuted blocks, balanced familiarization",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "interruption in PROMPT persists exposure and consumes exactly once"
+          "name": "interruption in PROMPT persists exposure and consumes exactly once",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "interruption in WAIT_REVEAL persists exposure and consumes exactly once"
+          "name": "interruption in WAIT_REVEAL persists exposure and consumes exactly once",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "interruption in RUNNING persists exposure and consumes exactly once"
+          "name": "interruption in RUNNING persists exposure and consumes exactly once",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "unexposed setup failure retains the planned entry without an outcome"
+          "name": "unexposed setup failure retains the planned entry without an outcome",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "break during outcome hold preserves one completion and resumes at the next entry"
+          "name": "break during outcome hold preserves one completion and resumes at the next entry",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "zero, false, missing values and quoted event text survive CSV round trip"
+          "name": "zero, false, missing values and quoted event text survive CSV round trip",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "manual completion and timeout never fill final video-coded measures"
+          "name": "manual completion and timeout never fill final video-coded measures",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "malformed existing log header is rejected and records are not silently appended"
+          "name": "malformed existing log header is rejected and records are not silently appended",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "write failure fails closed and retains an active-session guard"
+          "name": "deleted run directory is reported instead of attempting a stale checkpoint",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "fresh reload is blocked instead of replaying an active or interrupted participant"
+          "name": "write failure fails closed and retains an active-session guard",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "main participant completion cannot be silently collected a second time"
+          "name": "fresh reload is blocked instead of replaying an active or interrupted participant",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "main session cannot be finalized before all scheduled entries have an outcome"
+          "name": "main participant completion cannot be silently collected a second time",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "clean test close permits a new unique run but never reuses an existing session path"
+          "name": "main session cannot be finalized before all scheduled entries have an outcome",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "exposure cannot be erased through cancelled_unexposed"
+          "name": "clean test close permits a new unique run but never reuses an existing session path",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "duplicate terminal outcome is rejected without a second video-coding row"
+          "name": "exposure cannot be erased through cancelled_unexposed",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "malformed participant markers fail closed and are preserved"
+          "name": "duplicate terminal outcome is rejected without a second video-coding row",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "unsafe identifiers and invalid allocation groups are rejected before creating runs"
+          "name": "malformed participant markers fail closed and are preserved",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "synced canonical titles and exact legacy aliases identify only one page per set"
+          "name": "unsafe identifiers and invalid allocation groups are rejected before creating runs",
+          "error": "nil"
         },
         {
-          "error": "nil",
           "passed": true,
-          "name": "non-finite observations are rejected rather than written as valid numbers"
+          "name": "synced canonical titles and exact legacy aliases identify only one page per set",
+          "error": "nil"
+        },
+        {
+          "passed": true,
+          "name": "non-finite observations are rejected rather than written as valid numbers",
+          "error": "nil"
         }
       ]
     },
@@ -381,14 +386,14 @@
   ],
   "source_hashes": {
     "init.lua": "f467432bf90edcf3a570f57d916773896c13ace2e818a24064fc90916fee4855",
-    "study/allocation.lua": "d64c140e28d2ed34e4cf4b52d17bb954dab943f5f70aab6983e35c939271b6e8",
+    "study/allocation.lua": "6a9078207e7d1c8e89d8128ad2764d98e42991e95eae61712b25a753d5055f81",
     "study/config.lua": "cad250c0d85e0e441485daf788c85bc1ae97c4b4d2b6f62b49863d5e46c45ce3",
-    "study/controller.lua": "b515e138830d902b9c1a4b074f6cde51ec0887070e80b6b973bb57f1be020e4a",
+    "study/controller.lua": "253bcc5f0808b9cfac99c0bb1c5dc5719b2a181484cd7f74ce1b47397ff7e14e",
     "study/materials.lua": "fbc7a3ae2a041528463221f7fb8a98dca82b2dd17d1b2aefcafc8f3ac8ffd01a",
     "study/model.lua": "b034b4c9211d2a71d0fe76c462b7b176217640cf668d67d4a7bda8166a2fde10",
-    "study/storage.lua": "51f62826049eeaf98fe988d567b5b75e7e5e36b1aa4b289db1e31eaf3add0c15",
-    "tests/controller_spec.lua": "41eafcbbf0b63875ab47552f40a8021e96434848d654a4ccfb7b9f81468ecedb",
-    "tests/integration_spec.lua": "df7a38c3c587ae9d87db9b0ecbbbf3cc576aad24970b55069de4bc0fc68fa83e",
+    "study/storage.lua": "7493d326f918a5ad0e1c3ada9e49866e14b50e494c1340c15e6baf85f17b3a91",
+    "tests/controller_spec.lua": "89423b76caea5625fa3d4a87fc0262e0ba12d2d951e070f1b41ef13263c0070c",
+    "tests/integration_spec.lua": "390bfb04b9631934f6e3ffb27428ec0295df8b3b57f352aef708dd62d96f8e07",
     "tests/model_spec.lua": "a95a8b11422a6113b4bd158798f17ce88a3f22b945e2309f54483fd6ff30cd7d"
   }
 }

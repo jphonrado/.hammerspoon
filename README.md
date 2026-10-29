@@ -151,6 +151,7 @@ During input lock, use keyboard shortcuts: mouse clicks, including the HCI menu,
 - On reload/crash/interrupted end, `ACTIVE.json` and `.session-lock/` can remain. The controller refuses to start that participant again automatically. This release intentionally has **no automatic resume**.
 - An unexpected native callback error also stops the controller and attempts synchronous input/record cleanup. Read the Hammerspoon Console and preserve the guarded session; do not keep starting prompts after an error.
 - Preserve the entire run and review its video, checkpoint, prompt exposure and outcomes with the research team. Do not delete a guard merely to replay exposed items. Continuation/replacement must follow a documented study decision; an AI must not infer permission to remove markers or rewrite old records.
+- Do not delete a run while Hammerspoon is still running it. The controller retains the run in memory and reports the missing record directory on its next checkpoint; stop or reload Hammerspoon first, then remove test records if needed.
 - A completely unexposed session can be cancelled cleanly. Main participants with a finalized session cannot be collected again through a fresh default session.
 
 ## Files and data
