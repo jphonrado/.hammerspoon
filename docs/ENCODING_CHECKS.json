@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "command": "python -m unittest discover -s tests -p test_*.py",
+  "test_cases": 15,
+  "native_macos_tested": false,
+  "scope": "OBS coding validation, missing/zero values, incomplete outcomes, identity, survey join keys; NASA-TLX remains in Google Forms",
+  "full_24_entry_export_smoke_test": {
+    "trial_rows": 24,
+    "condition_rows": 4,
+    "source": "clearly simulated Lua integration records",
+    "uncoded_values_kept_blank": true
+  },
+  "source_hashes": {
+    "tools/encode_session.py": "52f4915ed00a93010c9dc2c9b573b5a12bed0f91e913208a6fbf03b8c1461c0c",
+    "tests/test_encoding.py": "7234b72f141045dab1dfa0a7dc385629102c92d9b8a7d1952a6d154adccb0ca6"
+  }
+}

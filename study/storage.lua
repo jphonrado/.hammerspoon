@@ -1,13 +1,14 @@
 -- Study records: append-only auxiliary observations and a separate coding sheet.
 -- No Hammerspoon globals are required: pass hs to create/inspectParticipant.
 -- A surviving ACTIVE.json / .session-lock is deliberately NOT auto-resumed.
-local M = { SCHEMA_VERSION = "1.0" }
+local M = { SCHEMA_VERSION = "2.0" }
 local Store = {}
 Store.__index = Store
 
 local COMMON = {
     "session_id", "mode", "participant", "group", "block", "condition",
     "orientation", "tab_load", "content_set", "trial", "target_id", "target_title",
+    "is_repeat", "target_task_position", "task_tab_count", "visible_tab_count",
 }
 local function columns(extra)
     local out = {}
@@ -17,12 +18,14 @@ local function columns(extra)
 end
 M.EVENT_COLUMNS = columns({
     "phase", "event", "wall_epoch", "monotonic_s", "elapsed_s", "observed_title",
-    "aux_selection_count", "aux_incorrect_count", "aux_first_correct", "detail",
+    "aux_selection_count", "aux_incorrect_count", "aux_first_correct", "observation_source", "detail",
 })
 M.TRIAL_COLUMNS = columns({
     "status", "prompt_exposed", "timed_started", "reveal_command_monotonic_s",
     "auto_detection_elapsed_s", "manual_ack_elapsed_s", "aux_selection_count",
-    "aux_incorrect_count", "aux_first_correct", "verification_required", "reason",
+    "aux_incorrect_count", "aux_first_correct", "aux_incorrect_pages", "detection_mode",
+    "mask_hide_returned_monotonic_s", "endpoint_monotonic_s", "observed_duration_s",
+    "max_poll_gap_s", "verification_required", "reason",
 })
 M.VIDEO_COLUMNS = columns({
     "controller_status", "video_status", "video_file", "video_start_frame",
@@ -224,7 +227,7 @@ function Store:_guard()
 end
 local function identity(store, ctx)
     ctx = ctx or {}
-    return {
+    local result = {
         session_id = store.meta.session_id, mode = store.meta.mode,
         participant = store.meta.participant, group = store.meta.group,
         block = pick(ctx.block, ctx.block_index, ctx.blockIndex),
@@ -235,6 +238,27 @@ local function identity(store, ctx)
         target_id = pick(ctx.target_id, ctx.targetID),
         target_title = pick(ctx.target_title, ctx.targetTitle),
     }
+    local block = store.meta.plan and store.meta.plan[tonumber(result.block)]
+    if block then
+        result.condition = result.condition or block.name
+        result.orientation = result.orientation or block.orientation
+        result.tab_load = result.tab_load or block.tabLoad
+        result.content_set = result.content_set or block.contentSet
+        result.visible_tab_count = block.expectedTabCount
+        result.task_tab_count = block.expectedTabCount and block.expectedTabCount - 1
+        local index = tonumber(tostring(result.trial or ""):match("(%d+)$"))
+        local trial = index and block.trials and block.trials[index]
+        if trial then
+            result.is_repeat = 0
+            for i = 1, index - 1 do
+                if block.trials[i].targetID == trial.targetID then result.is_repeat = 1 end
+            end
+            for pos, path in ipairs(block.taskOrder or {}) do
+                if path == trial.path then result.target_task_position = pos end
+            end
+        end
+    end
+    return result
 end
 
 function M.create(baseDir, meta, hs)
@@ -297,6 +321,7 @@ function Store:event(name, ctx)
     row.wall_epoch = pick(ctx.wall_epoch, os.time())
     row.monotonic_s, row.elapsed_s = ctx.monotonic_s, ctx.elapsed_s
     row.observed_title, row.detail = ctx.observed_title, ctx.detail
+    row.observation_source = ctx.observation_source
     row.aux_selection_count = pick(ctx.aux_selection_count, ctx.nSelections)
     row.aux_incorrect_count = pick(ctx.aux_incorrect_count, ctx.nIncorrect)
     row.aux_first_correct = pick(ctx.aux_first_correct, ctx.firstCorrect)
@@ -325,6 +350,8 @@ function Store:trial(record)
     row.aux_selection_count = pick(record.aux_selection_count, record.nSelections)
     row.aux_incorrect_count = pick(record.aux_incorrect_count, record.nIncorrect)
     row.aux_first_correct = pick(record.aux_first_correct, record.firstCorrect)
+    for _, name in ipairs({"aux_incorrect_pages", "detection_mode", "mask_hide_returned_monotonic_s",
+        "endpoint_monotonic_s", "observed_duration_s", "max_poll_gap_s"}) do row[name] = record[name] end
     row.verification_required = true
     row.reason = pick(record.reason, record.detail)
     if row.prompt_exposed == true then self.exposureSeen = true end

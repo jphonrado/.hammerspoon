@@ -13,11 +13,11 @@ Updated 29 October 2026. Original issue numbers are 2 (measurement), 3 (controll
 
 ## Local evidence
 
-`LOCAL_CHECKS.json` records **10/10 Lua syntax checks** and **81 passing behavioral cases**:
+`LOCAL_CHECKS.json` records **10/10 Lua syntax checks** and **96 passing Lua behavioral cases** plus **15 Python encoding tests**:
 
 - 12 pure lifecycle cases.
-- 22 storage/material/allocation integration cases using real temporary files.
-- 47 Mac-adapter/loader cases using simulated Hammerspoon APIs.
+- 24 storage/material/allocation integration cases using real temporary files.
+- 60 Mac-adapter/loader cases using simulated Hammerspoon APIs.
 
 The adapter checks include all four groups' complete 24-entry flows, stale-mask rejection, session gates, no renewed lock after failed logging, interruption handling, completed-session guards, exception cleanup and shutdown-hook chaining. The separate model/storage integration also verifies each group and the 16-slot allocation. These are simulations, not participant observations or native-device validation.
 
@@ -30,3 +30,7 @@ Use `MAC_CHECKLIST.md` on the actual study Mac. The controller defaults to test/
 ## Automation restoration after synced group edits
 
 Version2.1.0 restores three-second automatic progression after normal completions/timeouts within an all-tabs-visible approved block. It retains recording hold, logs, verified neutral/pointer/frame reset, interruption/no-replay guards and manual condition boundaries. The original facilitator-paced behavior remains configurable and is used for scrolling layouts. This local record does not certify native playback/visibility; the updated Mac checklist remains NOT RUN.
+
+## Orlando audit, version 2.2.0
+
+Audited implemented-hammerspoon at ed02f4b. Fixed timeout/interruption classification, reveal/endpoint disk-latency contamination, unavailable-count handling, and added optional accessibility observations with polling fallback. Added repeat/position/count metadata and a checked OBS encoding/export tool. NASA-TLX remains in Google Forms; only participant/condition join keys are exported. See ORLANDO_AUDIT_2026-10-29.md and ENCODING.md. Native Mac verification remains NOT RUN.

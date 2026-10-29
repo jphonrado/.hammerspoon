@@ -1,11 +1,13 @@
 -- Researcher settings. No Python or browser extension is required.
 return {
-  version = "2.1.0",
+  version = "2.2.0",
   chromeAppName = "Google Chrome",
   neutralTitle = "Study Start",
   postPromptDelaySeconds = 0.40,
   timeoutSeconds = 60,
   pollIntervalSeconds = 0.05,
+  pollGapWarningSeconds = 0.20, -- Flag delayed observations for OBS review.
+  accessibilityNotifications = true, -- Best effort, with title polling as backup.
   neutralWaitSeconds = 2.0,
   windowTolerancePixels = 3,
   outcomeHoldSeconds = 0.30, -- Provisional: verify the correct page is visible in OBS.

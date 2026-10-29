@@ -108,6 +108,10 @@ function M:cancelTimers()
   for _,t in pairs(self.timers) do t:stop() end
   self.timers={}
   self.autoNextPending=nil
+  if self.titleObserver then
+    local observer=self.titleObserver;self.titleObserver=nil
+    pcall(function()observer:stop()end)
+  end
 end
 function M:after(key,delay,fn)
   if self.timers[key] then self.timers[key]:stop() end
@@ -431,7 +435,8 @@ function M:startTrial(automatic)
       local actual=self.hs.mouse.absolutePosition()
       if math.abs(actual.x-p.x)>2 or math.abs(actual.y-p.y)>2 then return self:emergency("Pointer reset failed") end
       self.lastTitle=self.cfg.neutralTitle
-      self.aux={selections=0,incorrect=0,first=nil,pages={}}
+      self.aux={selections=0,incorrect=0,first=nil,pages={},maxPollGap=0}
+      self.detectionMode=nil;self.hideReturnedTime=nil;self.lastPollTime=nil
       local detail="Neutral title/frame/pointer checked; "..(automatic==true
         and "native layout relies on retained all-tabs-visible block approval"
         or "native layout manually approved before this start")
@@ -481,22 +486,69 @@ function M:reveal()
   local win,err=self:validWindow(true)
   if not win then return self:emergency(err) end
   if normalizedTitle(win:title())~=self.cfg.neutralTitle then return self:emergency("Neutral page changed before reveal") end
+  if not self.mouseTap or (self.mouseTap.isEnabled and not self.mouseTap:isEnabled()) then
+    return self:emergency("Input lock was lost before reveal")
+  end
   self.lastTitle=self.cfg.neutralTitle -- Known baseline established BEFORE input release.
+  self:armTitleObserver(win)
+  if self.fatal then return end
   local ok,why=self.model:reveal();if not ok then return self:emergency(why) end
+  -- No disk writes or event logging between this marker and the hide request.
   self.revealTime=self:now()
   self.model.currentRecord.reveal_command_monotonic_s=self.revealTime
+  self:hideMask()
+  self.hideReturnedTime=self:now()
+  self.model.currentRecord.mask_hide_returned_monotonic_s=self.hideReturnedTime
+  self.lastPollTime=self.hideReturnedTime
+  self:unlock()
   if not self:checkpoint() then return end
   if not self:event("REVEAL_COMMAND",{detail="Software marker, not the first recorded visible frame"}) then return end
-  self:hideMask();self:unlock()
-  self:after("timeout",self.cfg.timeoutSeconds,function() self:finish("timeout") end)
+  local remaining=math.max(0,self.cfg.timeoutSeconds-(self:now()-self.revealTime))
+  self:after("timeout",remaining,function() self:finish("timeout") end)
   if self.cfg.autoDetectTarget then
     self.timers.poll=self.hs.timer.doEvery(self.cfg.pollIntervalSeconds,function() self:guard(function()self:poll()end) end)
   end
 end
+
+function M:armTitleObserver(win)
+  self.detectionMode=self.cfg.autoDetectTarget and "poll_only" or "manual"
+  if not self.cfg.autoDetectTarget or not self.cfg.accessibilityNotifications then return end
+  local ax=self.hs.axuielement
+  if not ax or not ax.observer then return end
+  local observer
+  local ok,err=pcall(function()
+    observer=ax.observer.new(win:application():pid())
+    observer:callback(function() self:guard(function() self:observeTitle("accessibility") end) end)
+    observer:addWatcher(ax.windowElement(win),"AXTitleChanged")
+    observer:start()
+    assert(observer:isRunning(),"Accessibility observer failed to start")
+  end)
+  if ok then self.titleObserver=observer;self.detectionMode="accessibility_and_poll"
+  else
+    if observer then pcall(function()observer:stop()end) end
+    self:event("TITLE_OBSERVER_UNAVAILABLE",{detail=tostring(err).."; auxiliary polling retained"})
+  end
+end
+
 function M:poll()
+  if self.fatal or not self.model or self.model.phase~="RUNNING" then return end
+  local now=self:now()
+  local gap=now-(self.lastPollTime or now)
+  self.lastPollTime=now
+  self.aux.maxPollGap=math.max(self.aux.maxPollGap or 0,gap)
+  if gap>(self.cfg.pollGapWarningSeconds or 0.20) then
+    if not self:event("POLL_GAP",{elapsed_s=gap,detail="Actual sample gap; reconcile selections against OBS"}) then return end
+  end
+  self:observeTitle("poll")
+end
+
+function M:observeTitle(source)
   if self.fatal or not self.model or self.model.phase~="RUNNING" then return end
   local win,err=self:validWindow(true)
   if not win then return self:emergency(err) end
+  local observedAt=self:now()
+  -- A delayed callback must not convert a deadline violation into completion.
+  if observedAt-self.revealTime>=self.cfg.timeoutSeconds then return self:finish("timeout",observedAt) end
   local title=normalizedTitle(win:title())
   if title==self.lastTitle then return end
   self.lastTitle=title
@@ -512,12 +564,13 @@ function M:poll()
   self.aux.selections=self.aux.selections+1
   if self.aux.first==nil then self.aux.first=correct and 1 or 0 end
   if not correct then self.aux.incorrect=self.aux.incorrect+1;self.aux.pages[#self.aux.pages+1]=title end
-  self:event("TITLE_CHANGE_OBSERVED",{observed_title=title,elapsed_s=self:now()-self.revealTime,
+  self:event("TITLE_CHANGE_OBSERVED",{observed_title=title,elapsed_s=observedAt-self.revealTime,
+    monotonic_s=observedAt,observation_source=source,
     aux_selection_count=self.aux.selections,aux_incorrect_count=self.aux.incorrect,
-    aux_first_correct=self.aux.first,detail="Polling observation; verify all selections against video"})
-  if correct and not self.fatal then self:finish("completed_auto") end
+    aux_first_correct=self.aux.first,detail="Observed transition; verify all selections against video"})
+  if correct and not self.fatal then self:finish("completed_auto",observedAt) end
 end
-function M:recordOutcome(record,source)
+function M:recordOutcome(record,source,endpoint)
   if not record or not self.store then return true end
   local b=self.meta.plan[record.block_index]
   local row=copy(record)
@@ -526,37 +579,48 @@ function M:recordOutcome(record,source)
   row.timed_started=record.timed_interval_started
   row.reason=record.detail
   row.verification_required=true
+  endpoint=endpoint or self:now()
+  row.detection_mode=self.detectionMode
+  row.mask_hide_returned_monotonic_s=record.mask_hide_returned_monotonic_s
+  row.endpoint_monotonic_s=record.timed_interval_started and endpoint or nil
   if self.revealTime and record.timed_interval_started then
     row.reveal_command_monotonic_s=self.revealTime
-    if source=="completed_auto" then row.auto_detection_elapsed_s=self:now()-self.revealTime end
-    if source=="completed_manual" then row.manual_ack_elapsed_s=self:now()-self.revealTime end
+    row.observed_duration_s=endpoint-self.revealTime
+    if source=="completed_auto" then row.auto_detection_elapsed_s=endpoint-self.revealTime end
+    if source=="completed_manual" then row.manual_ack_elapsed_s=endpoint-self.revealTime end
   end
-  if self.aux and record.timed_interval_started then
+  if self.aux and record.timed_interval_started and self.cfg.autoDetectTarget then
     row.aux_selection_count=self.aux.selections
     row.aux_incorrect_count=self.aux.incorrect
     row.aux_first_correct=self.aux.first
+    row.aux_incorrect_pages=self.aux.pages
+    row.max_poll_gap_s=self.aux.maxPollGap
+    -- Counts remain observed estimates even for incomplete/manual outcomes.
+    row.total_tab_switches=self.cfg.autoDetectTarget and self.aux.selections or nil
+    row.incorrect_selections=self.cfg.autoDetectTarget and self.aux.incorrect or nil
+    row.first_selection_correct=self.cfg.autoDetectTarget and self.aux.first~=nil
+      and (self.aux.first==1) or nil
+    -- Lua's and/or idiom loses false. Preserve a genuine wrong first selection.
+    if self.cfg.autoDetectTarget and self.aux.first==0 then row.first_selection_correct=false end
   end
-  row.measurement_source="controller_title_detection"
+  row.measurement_source="controller_"..(self.detectionMode or "not_started")
   if source=="completed_auto" and self.revealTime and record.timed_interval_started then
-    row.retrieval_time_s=self:now()-self.revealTime
-    row.total_tab_switches=self.aux.selections
-    row.incorrect_selections=self.aux.incorrect
-    row.first_selection_correct=self.aux.first == 1
-  elseif source=="timeout" then
-    row.no_selection=true
-  elseif source=="interrupted" then
-    row.technical_loss=true
+    row.retrieval_time_s=endpoint-self.revealTime
   end
+  -- Zero observed switches cannot prove no selection: sampling may miss one.
+  -- A timeout can contain wrong selections; a voluntary break is not data loss.
+  row.no_selection=nil;row.technical_loss=nil
   local ok,err=self.store:trial(row)
   if not ok then self:storageFailure(err) end
   return ok
 end
-function M:finish(status)
+function M:finish(status,endpoint)
   if not self.model or self.fatal or self.model.phase~="RUNNING" then return end
+  endpoint=endpoint or self:now()
   local ok,record=self.model:finish(status,"Final outcome measurements require video coding")
   if not ok then return self:notice(record) end
   self:cancelTimers()
-  if not self:recordOutcome(record,status) then return end
+  if not self:recordOutcome(record,status,endpoint) then return end
   self:event("TRIAL_OUTCOME",{detail=status});if self.fatal then return end
   if not self:checkpoint() then return end
   local locked,err=self:lock();if not locked then return self:emergency(err) end
@@ -575,6 +639,7 @@ function M:finish(status)
   end)
 end
 function M:emergency(reason)
+  local endpoint=self:now()
   self:cancelTimers();self:stopSound();self:unlock();self:hideMask()
   self.setupApproved=false
   self.autoBlockApproval=nil;self.autoNextPending=nil
@@ -591,7 +656,7 @@ function M:emergency(reason)
       -- Already safe/non-running; do not create a second outcome.
     else
       local ok,record=self.model:interrupt(reason)
-      if ok and record then self:recordOutcome(record,"interrupted") end
+      if ok and record then self:recordOutcome(record,"interrupted",endpoint) end
     end
     self:event("PAUSE_OR_INTERRUPTION",{detail=reason})
     self:checkpoint()

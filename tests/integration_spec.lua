@@ -367,4 +367,28 @@ test("non-finite observations are rejected rather than written as valid numbers"
     equal(#rows(store, "events.csv"), 0)
 end)
 
+test("repeat/position metadata and zero/false estimates survive storage without final coding", function()
+    local store = makeStore("metadata-estimates")
+    local plan=store.meta.plan
+    for ti, status in ipairs({"completed_auto","timeout","interrupted"}) do
+        local trial=plan[1].trials[ti]
+        assert(store:trial({block=1,trial=trial.id,condition=plan[1].name,content_set="A",
+            target_id=trial.targetID,target_title=trial.targetTitle,status=status,
+            timed_started=true,aux_selection_count=2,aux_incorrect_count=1,aux_first_correct=0,
+            aux_incorrect_pages={"Wrong title"},detection_mode="poll_only",max_poll_gap_s=0.05,
+            first_selection_correct=false,total_tab_switches=2,incorrect_selections=1,
+            measurement_source="controller_poll_only"}))
+    end
+    local aux=rows(store,"trials_aux.csv")
+    equal(aux[1].target_task_position,"1");equal(aux[3].is_repeat,"1")
+    equal(aux[1].visible_tab_count,"6");equal(aux[1].task_tab_count,"5")
+    equal(aux[1].aux_first_correct,"0");equal(aux[1].detection_mode,"poll_only")
+    local main=rows(store,"main_data.csv")
+    for _,r in ipairs(main) do
+        equal(r.first_selection_correct,"false");equal(r.video_verified,"false")
+        equal(r.no_selection,"");equal(r.technical_loss,"")
+    end
+    for _,r in ipairs(rows(store,"video_coding.csv")) do equal(r.first_selection_correct,"") end
+end)
+
 return results

@@ -1,19 +1,19 @@
 # HCI2000 Hammerspoon study controller
 
 Revised controller for **Effects of Browser Tab Orientation & Tab Load on Navigation Performance**.
-Version **2.1.0**, updated 29 October 2026 from the group's synced `implemented-hammerspoon` branch (`ff67ebb`), retaining the earlier issue-2/3/4 repairs.
+Version **2.2.0**, audited 29 October 2026 against `implemented-hammerspoon` at `ed02f4b`. See [the Orlando audit](docs/ORLANDO_AUDIT_2026-10-29.md) and [encoding guide](docs/ENCODING.md).
 
 ## What this folder is
 
 This is the macOS experiment controller in the `.hammerspoon` Git repository. Its repository root contains `init.lua`, `study/` and `orlando_audio/`. The Python/HTML content project is separate in `hci_exp/Tab-Sets-for-Experiment`. Hammerspoon runs this package on the study Mac; **Python is not required to run the experiment controller**. Optional Python/Lupa tools are for developer tests only.
 
-The controller masks/reveals Chrome's tab region, plays the group's current target recordings, manages the trial schedule, and writes auxiliary records. **Saved OBS video and manual coding remain the source of final retrieval times, first-selection accuracy and selection counts.** Polling observations are not silently promoted to final measurements.
+The controller masks/reveals Chrome's tab region, plays the group's current target recordings, manages the trial schedule, and writes auxiliary records. **NASA-TLX is collected separately through Google Forms; the controller does not collect or score it.** **Saved OBS video and manual coding remain the source of final retrieval times, first-selection accuracy and selection counts.** Automatic observations are not silently promoted to final measurements. The newest baseline added `main_data.csv`; it remains an unverified estimate sheet. The encoding tool creates final performance exports from OBS coding and participant/condition keys for linking Google Forms.
 
 ### Verification status
 
 The code was implemented and tested locally with Lua 5.4, simulated Hammerspoon APIs and real temporary record files. Exact test counts and source fingerprints are in `docs/LOCAL_CHECKS.json`.
 
-The final local run passed **81 behavioral cases and all 10 Lua syntax checks** (12 model, 22 integration, 47 controller/loader). `docs/MILESTONES.md` tracks implementation versus native-device verification for 2A-4B.
+The current local checks pass **96 Lua behavioral cases and all 10 Lua syntax checks** (12 model, 24 integration, 60 controller/loader), plus **15 Python encoding tests**. `docs/MILESTONES.md` tracks implementation versus native-device verification for 2A-4B.
 
 **The actual macOS/Chrome/OBS checks have not been run here.** Input permissions, audio decoding/playback, native tab geometry, mask coverage and captured video must pass `docs/MAC_CHECKLIST.md` on the study laptop. Main-study mode is disabled by default; test and pilot modes work without declaring those checks complete.
 
@@ -167,6 +167,7 @@ During input lock, use keyboard shortcuts: mouse clicks, including the HCI menu,
   study/allocation.lua         Frozen 16-slot main allocation
   orlando_audio/               20 current synced recordings (9 replaced by group)
   records/                     New local test/pilot/main records
+  tools/encode_session.py      OBS coding/export and Forms join keys (optional Python)
   DATA_DICTIONARY.md            CSV meanings and missing-value rules
   docs/PREPARATION.md           Target positions and tab-order reference
   docs/allocation.csv           Human-readable allocation/practice template
@@ -177,9 +178,9 @@ During input lock, use keyboard shortcuts: mouse clicks, including the HCI menu,
   tests/ and tools/            Optional developer tests
 ```
 
-Each new run lives under `records/<mode>/<participant>/<session_id>/` with `session.json`, `checkpoint.json`, `events.csv`, `trials_aux.csv` and `video_coding.csv`. The checkpoint also records the approved frame, saved pointer, both mask calibrations, automatic block approval, and pending automatic trial identity. Checkpoints are audit snapshots, not automatic-resume authorization. Expected current-audio fingerprints and the materials-definition fingerprint identify this delivery; the source-manifest hash remains historical input provenance, and these are provenance, not a claim that playback/wording was validated on the Mac. Do not put participant names or consent forms here. See `DATA_DICTIONARY.md` for exact columns.
+Each new run lives under `records/<mode>/<participant>/<session_id>/` with `session.json`, `checkpoint.json`, `events.csv`, `trials_aux.csv`, `main_data.csv` and `video_coding.csv`. The checkpoint also records the approved frame, saved pointer, both mask calibrations, automatic block approval, and pending automatic trial identity. Checkpoints are audit snapshots, not automatic-resume authorization. Expected current-audio fingerprints and the materials-definition fingerprint identify this delivery; the source-manifest hash remains historical input provenance, and these are provenance, not a claim that playback/wording was validated on the Mac. Do not put participant names or consent forms here. See `DATA_DICTIONARY.md` for exact columns.
 
-`reveal_command_monotonic_s` records a software request, not a visible frame. `auto_detection_elapsed_s` includes polling delay. `manual_ack_elapsed_s` includes facilitator reaction time. Final retrieval time uses the agreed recorded start and first correct target-active frame. Completed verified trials satisfy `total_tab_switches = incorrect_selections + 1`.
+`reveal_command_monotonic_s` records a software request, not a visible frame. `auto_detection_elapsed_s` includes observation delivery/sampling delay. Accessibility title notifications supplement the 50-ms polling backup where supported; raw logs record detector mode and actual sample gaps. `manual_ack_elapsed_s` includes facilitator reaction time. Final retrieval time uses the agreed recorded start and first correct target-active frame. Completed verified trials satisfy `total_tab_switches = incorrect_selections + 1`.
 
 ### For future developers and AI assistants
 
@@ -205,4 +206,12 @@ python tools/run_checks.py --lua-python-path PATH_TO_ISOLATED_LUPA
 - Sound loading/playback: https://www.hammerspoon.org/docs/hs.sound.html
 - Chrome tab focusing: https://www.hammerspoon.org/docs/hs.window.html#focusTab
 
+- Accessibility title notifications: https://www.hammerspoon.org/docs/hs.axuielement.observer.html
+
 These references describe APIs; they do not establish that the group's hardware/OBS configuration has passed validation.
+
+## Navigation encoding and Google Forms
+
+Follow [docs/ENCODING.md](docs/ENCODING.md) to prepare an OBS coding copy and export checked trial/condition CSVs. The exporter validates frames, FPS, counts and identities, preserves zero versus missing, and never substitutes automatic estimates. `survey_join_keys.csv` provides participant code plus condition for linking the separate Google Forms NASA-TLX results. Block order is not condition. No form, questionnaire UI, workload scoring or audio is changed by this audit.
+
+Encoding test command: `python -m unittest discover -s tests -p "test_*.py"`.

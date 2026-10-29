@@ -908,4 +908,138 @@ test("loader chains unrelated shutdown once and does not retain stale HCI hooks"
     if not ok then error(message) end
 end)
 
+test("timeout with wrong selections retains counts without inventing no-selection",function()
+    local c,e,s=fixture()
+    running(c,e)
+    e.title="Wrong tab";c:poll()
+    e.advance(c.cfg.timeoutSeconds)
+    local r=s.trials[1]
+    eq(r.status,"timeout");eq(r.total_tab_switches,1);eq(r.incorrect_selections,1)
+    eq(r.first_selection_correct,false);eq(r.no_selection,nil)
+    eq(r.retrieval_time_s,nil);eq(r.aux_incorrect_pages[1],"Wrong tab")
+end)
+
+test("timeout without observable selection leaves first correctness and no-selection unknown",function()
+    local c,e,s=fixture()
+    running(c,e);e.advance(c.cfg.timeoutSeconds)
+    eq(s.trials[1].first_selection_correct,nil);eq(s.trials[1].no_selection,nil)
+    eq(s.trials[1].total_tab_switches,0)
+end)
+
+test("participant break does not invent technical loss",function()
+    local c,e,s=fixture()
+    running(c,e);c:emergency("Participant requests a break")
+    eq(s.trials[1].status,"interrupted");eq(s.trials[1].technical_loss,nil)
+    eq(s.trials[1].retrieval_time_s,nil)
+end)
+
+test("disabled detector leaves unavailable selection counts blank",function()
+    local c,e,s=fixture()
+    c.cfg.autoDetectTarget=false
+    running(c,e);c:finish("completed_manual")
+    eq(s.trials[1].total_tab_switches,nil);eq(s.trials[1].aux_selection_count,nil)
+    eq(s.trials[1].first_selection_correct,nil);eq(s.trials[1].retrieval_time_s,nil)
+end)
+
+test("endpoint is captured before event disk latency",function()
+    local c,e,s=fixture()
+    running(c,e)
+    local onset=c.revealTime
+    local event=s.event
+    function s:event(name,ctx)
+        if name=="TITLE_CHANGE_OBSERVED" then e.time=e.time+0.6 end
+        return event(self,name,ctx)
+    end
+    e.time=onset+0.2;e.title=c.model:currentTrial().targetTitle;c:poll()
+    assert(math.abs(s.trials[1].retrieval_time_s-0.2)<1e-8)
+    assert(math.abs(s.trials[1].auto_detection_elapsed_s-0.2)<1e-8)
+end)
+
+test("reveal timestamp excludes checkpoint disk latency before mask removal",function()
+    local c,e,s=fixture()
+    startPrompt(c,e);e.sound.callback(true)
+    local checkpoint=s.checkpoint
+    function s:checkpoint(snapshot)
+        if snapshot.phase=="RUNNING" then
+            assert(c.mask==nil,"Mask must already be hidden before the running checkpoint")
+            e.time=e.time+0.7
+        end
+        return checkpoint(self,snapshot)
+    end
+    e.advance(Config.postPromptDelaySeconds)
+    assert(c.hideReturnedTime>=c.revealTime)
+    assert(c.hideReturnedTime-c.revealTime<1e-8)
+end)
+
+test("observed target beyond deadline remains an incomplete software outcome",function()
+    local c,e,s=fixture()
+    running(c,e)
+    e.time=c.revealTime+c.cfg.timeoutSeconds+0.01
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    eq(s.trials[1].status,"timeout");eq(s.trials[1].retrieval_time_s,nil)
+end)
+
+test("returning to neutral is incorrect; repeated active-title samples do not add selections",function()
+    local c,e,s=fixture()
+    running(c,e)
+    e.title="Wrong tab";c:poll();c:poll()
+    e.title="Study Start";c:poll();c:poll()
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    eq(s.trials[1].total_tab_switches,3);eq(s.trials[1].incorrect_selections,2)
+    eq(s.trials[1].first_selection_correct,false)
+end)
+
+test("accessibility transitions between polls are observed and deduplicated",function()
+    local c,e,s=fixture()
+    local observer={running=false}
+    function observer:callback(fn)self.fn=fn end
+    function observer:addWatcher()return self end
+    function observer:start()self.running=true end
+    function observer:isRunning()return self.running end
+    function observer:stop()self.running=false end
+    c.hs.axuielement={observer={new=function()return observer end},windowElement=function(w)return w end}
+    c.hs.window.get(7):application().pid=function()return 321 end
+    running(c,e)
+    e.title="Wrong tab";observer.fn()
+    e.title="Study Start";observer.fn()
+    e.title=c.model:currentTrial().targetTitle;observer.fn()
+    eq(s.trials[1].detection_mode,"accessibility_and_poll")
+    eq(s.trials[1].total_tab_switches,3);eq(s.trials[1].incorrect_selections,2)
+    eq(observer.running,false)
+end)
+
+test("unsupported accessibility notifications retain honest polling fallback",function()
+    local c,e,s=fixture()
+    c.hs.axuielement={observer={new=function()error("not supported")end}}
+    running(c,e);e.title=c.model:currentTrial().targetTitle;c:poll()
+    eq(s.trials[1].detection_mode,"poll_only")
+end)
+
+test("observer fallback logging failure cannot reveal or relock a fatal trial",function()
+    local c,e,s=fixture()
+    c.hs.axuielement={observer={new=function()error("not supported")end}}
+    startPrompt(c,e);s.failEvent="TITLE_OBSERVER_UNAVAILABLE"
+    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
+    eq(c.fatal,true);eq(e.lockEnabled,false);eq(c.mask,nil)
+    assert(c.model.phase~="RUNNING")
+end)
+
+test("lost mouse tap before reveal interrupts rather than starting unprotected",function()
+    local c,e,s=fixture()
+    startPrompt(c,e);c.mouseTap.enabled=false
+    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
+    eq(c.model.phase,"PAUSED");eq(s.trials[1].status,"interrupted")
+    eq(s.trials[1].timed_started,false)
+end)
+
+test("observed polling gaps are recorded rather than claiming 50ms precision",function()
+    local c,e,s=fixture()
+    running(c,e);e.time=c.revealTime+0.4;c:poll()
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    assert(s.trials[1].max_poll_gap_s>=0.39)
+    local seen=false
+    for _,event in ipairs(s.events) do if event.name=="POLL_GAP" then seen=true end end
+    eq(seen,true)
+end)
+
 return results

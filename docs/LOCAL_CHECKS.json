@@ -1,7 +1,7 @@
 {
   "passed": true,
   "runtime": "Lua 5.4 via development-only Python lupa",
-  "package_root": "/Users/jphonrado/.hammerspoon",
+  "package_root": "/workspace/scratch/a331770d76c2/orlando-implementation",
   "syntax": [
     {
       "file": "init.lua",
@@ -63,7 +63,7 @@
     {
       "suite": "integration",
       "passed": true,
-      "case_count": 23,
+      "case_count": 24,
       "cases": [
         {
           "error": "nil",
@@ -179,206 +179,263 @@
           "error": "nil",
           "passed": true,
           "name": "non-finite observations are rejected rather than written as valid numbers"
+        },
+        {
+          "error": "nil",
+          "passed": true,
+          "name": "repeat/position metadata and zero/false estimates survive storage without final coding"
         }
       ]
     },
     {
       "suite": "controller",
       "passed": true,
-      "case_count": 47,
+      "case_count": 60,
       "cases": [
         {
-          "passed": true,
-          "name": "adapter blocks navigation in ready and outcome hold"
+          "name": "adapter blocks navigation in ready and outcome hold",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter partial prompt pause consumes and cannot auto replay"
+          "name": "adapter partial prompt pause consumes and cannot auto replay",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter missing audio before exposure retains scheduled entry"
+          "name": "adapter missing audio before exposure retains scheduled entry",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter verifies neutral activation with a bounded wait"
+          "name": "adapter verifies neutral activation with a bounded wait",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter catches moved window before prompt exposure"
+          "name": "adapter catches moved window before prompt exposure",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter immediate post-reveal selection uses preverified neutral baseline"
+          "name": "adapter immediate post-reveal selection uses preverified neutral baseline",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter timeout without selection leaves final outcomes for video"
+          "name": "adapter timeout without selection leaves final outcomes for video",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter checkpoint failure cannot acquire a new fatal input lock"
+          "name": "adapter checkpoint failure cannot acquire a new fatal input lock",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter verified-start event failure cannot play the prompt"
+          "name": "adapter verified-start event failure cannot play the prompt",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter pause after session completion never writes closed records"
+          "name": "adapter pause after session completion never writes closed records",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter ending an already completed session cannot mark it interrupted"
+          "name": "adapter ending an already completed session cannot mark it interrupted",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter selects the LAST tab as Study Start (6 low, 16 high)"
+          "name": "adapter selects the LAST tab as Study Start (6 low, 16 high)",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter falls back to Cmd+9 (last tab), never Cmd+1"
+          "name": "adapter falls back to Cmd+9 (last tab), never Cmd+1",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter completes 24 trial outcomes for each of the four allocation groups"
+          "name": "adapter completes 24 trial outcomes for each of the four allocation groups",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter rejects stale mask dimensions in either orientation"
+          "name": "adapter rejects stale mask dimensions in either orientation",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "automatic block approval does not start the first prompt without Return"
+          "name": "automatic block approval does not start the first prompt without Return",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "automatic completion countdown resets neutral and pointer before the next prompt"
+          "name": "automatic completion countdown resets neutral and pointer before the next prompt",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "automatic flow completes all four groups with one approval per block and stops for TLX"
+          "name": "automatic flow completes all four groups with one approval per block and stops for TLX",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "automatic target detection accepts only the explicit legacy title for the same page"
+          "name": "automatic target detection accepts only the explicit legacy title for the same page",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "automatic scheduling event failure releases input and cannot start another trial"
+          "name": "automatic scheduling event failure releases input and cannot start another trial",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "interrupted audio in an automatic block revokes progression without replay"
+          "name": "interrupted audio in an automatic block revokes progression without replay",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "manual configuration keeps facilitator-paced trial starts"
+          "name": "manual configuration keeps facilitator-paced trial starts",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "scrolling block falls back to manual trials instead of claiming a scroll reset"
+          "name": "scrolling block falls back to manual trials instead of claiming a scroll reset",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "pause cancels an automatic countdown without replaying the completed trial"
+          "name": "pause cancels an automatic countdown without replaying the completed trial",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "Setup cancels an automatic countdown and requires fresh approval"
+          "name": "Setup cancels an automatic countdown and requires fresh approval",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "emergency during recording hold cannot create a later automatic prompt"
+          "name": "emergency during recording hold cannot create a later automatic prompt",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "moved window cancels automatic continuation before another exposure"
+          "name": "moved window cancels automatic continuation before another exposure",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "focus loss cancels automatic continuation without bringing Chrome back silently"
+          "name": "focus loss cancels automatic continuation without bringing Chrome back silently",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "missing study window cancels automatic continuation"
+          "name": "missing study window cancels automatic continuation",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "stale mask calibration cannot expose an automatic next trial"
+          "name": "stale mask calibration cannot expose an automatic next trial",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "checkpoint failure during automatic preparation releases input without a new prompt"
+          "name": "checkpoint failure during automatic preparation releases input without a new prompt",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "automatic-start event failure cannot play another prompt"
+          "name": "automatic-start event failure cannot play another prompt",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "missing next audio stops before exposure and retains the pending scheduled entry"
+          "name": "missing next audio stops before exposure and retains the pending scheduled entry",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "failed automatic neutral reset stops before the next target prompt"
+          "name": "failed automatic neutral reset stops before the next target prompt",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "timeout follows the configured automatic countdown without inventing a completed time"
+          "name": "timeout follows the configured automatic countdown without inventing a completed time",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "timeout can explicitly retain manual progression while normal completions are automatic"
+          "name": "timeout can explicitly retain manual progression while normal completions are automatic",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "manual target acknowledgment keeps the same automatic within-block flow"
+          "name": "manual target acknowledgment keeps the same automatic within-block flow",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "an interrupted automatic trial consumes its exposed entry and never restarts itself"
+          "name": "an interrupted automatic trial consumes its exposed entry and never restarts itself",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter rejects invalid group before creating session records"
+          "name": "adapter rejects invalid group before creating session records",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter main mode remains disabled until explicitly configured"
+          "name": "adapter main mode remains disabled until explicitly configured",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter rejects main mode with unverified recording settings"
+          "name": "adapter rejects main mode with unverified recording settings",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter rejects an unknown main participant without asking for a random group"
+          "name": "adapter rejects an unknown main participant without asking for a random group",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "adapter main participant obtains its frozen roster group and practice order"
+          "name": "adapter main participant obtains its frozen roster group and practice order",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "unexpected control exception releases input and guards interrupted session"
+          "name": "unexpected control exception releases input and guards interrupted session",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "unexpected timer callback error cannot leave input locked"
+          "name": "unexpected timer callback error cannot leave input locked",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "unexpected audio completion error invokes protected cleanup"
+          "name": "unexpected audio completion error invokes protected cleanup",
+          "passed": true
         },
         {
-          "passed": true,
-          "name": "loader chains unrelated shutdown once and does not retain stale HCI hooks"
+          "name": "loader chains unrelated shutdown once and does not retain stale HCI hooks",
+          "passed": true
+        },
+        {
+          "name": "timeout with wrong selections retains counts without inventing no-selection",
+          "passed": true
+        },
+        {
+          "name": "timeout without observable selection leaves first correctness and no-selection unknown",
+          "passed": true
+        },
+        {
+          "name": "participant break does not invent technical loss",
+          "passed": true
+        },
+        {
+          "name": "disabled detector leaves unavailable selection counts blank",
+          "passed": true
+        },
+        {
+          "name": "endpoint is captured before event disk latency",
+          "passed": true
+        },
+        {
+          "name": "reveal timestamp excludes checkpoint disk latency before mask removal",
+          "passed": true
+        },
+        {
+          "name": "observed target beyond deadline remains an incomplete software outcome",
+          "passed": true
+        },
+        {
+          "name": "returning to neutral is incorrect; repeated active-title samples do not add selections",
+          "passed": true
+        },
+        {
+          "name": "accessibility transitions between polls are observed and deduplicated",
+          "passed": true
+        },
+        {
+          "name": "unsupported accessibility notifications retain honest polling fallback",
+          "passed": true
+        },
+        {
+          "name": "observer fallback logging failure cannot reveal or relock a fatal trial",
+          "passed": true
+        },
+        {
+          "name": "lost mouse tap before reveal interrupts rather than starting unprotected",
+          "passed": true
+        },
+        {
+          "name": "observed polling gaps are recorded rather than claiming 50ms precision",
+          "passed": true
         }
       ]
     }
   ],
-  "exported_simulated_examples": null,
+  "exported_simulated_examples": "/workspace/scratch/a331770d76c2/orlando-navigation-simulated",
   "native_macos_tested": false,
   "limitations": [
     "No real Chrome tabs, Hammerspoon APIs, input hooks or OBS capture were exercised.",
@@ -387,13 +444,13 @@
   "source_hashes": {
     "init.lua": "f467432bf90edcf3a570f57d916773896c13ace2e818a24064fc90916fee4855",
     "study/allocation.lua": "6a9078207e7d1c8e89d8128ad2764d98e42991e95eae61712b25a753d5055f81",
-    "study/config.lua": "cad250c0d85e0e441485daf788c85bc1ae97c4b4d2b6f62b49863d5e46c45ce3",
-    "study/controller.lua": "3138b575543cd33fe861d5ff847cc350ddc44b58c62a32402d994efe78fa33be",
+    "study/config.lua": "8ba21b565bea2758f7b8d2033fe33a8c351afecae91226f417451a48e76b1640",
+    "study/controller.lua": "e9b4cc930eeea393eee77ec253765734ad6004e3680d760cc428cb9a1ea00153",
     "study/materials.lua": "fbc7a3ae2a041528463221f7fb8a98dca82b2dd17d1b2aefcafc8f3ac8ffd01a",
     "study/model.lua": "b034b4c9211d2a71d0fe76c462b7b176217640cf668d67d4a7bda8166a2fde10",
-    "study/storage.lua": "2d61947a0cdd6a0d880074086e190aa1d5958e224c41976f7922ce29235791b0",
-    "tests/controller_spec.lua": "89423b76caea5625fa3d4a87fc0262e0ba12d2d951e070f1b41ef13263c0070c",
-    "tests/integration_spec.lua": "522e92b67ede71d6cd5849ba726e1326e4eae2328e7ed75ea6fc9717c0d762a1",
+    "study/storage.lua": "f2032830b225ac9eb6d628056d7e03cb136e0cce5a9c7de67a07a4661c94c9cf",
+    "tests/controller_spec.lua": "1c7ab2e6ba72fa7dec3174376983246b24673f5c2c9ac140c8ecba5b9610db7b",
+    "tests/integration_spec.lua": "c066f61022bfa836fa0f7ff594546e084617fcd054db59927c64045ababc7ce4",
     "tests/model_spec.lua": "a95a8b11422a6113b4bd158798f17ce88a3f22b945e2309f54483fd6ff30cd7d"
   }
 }

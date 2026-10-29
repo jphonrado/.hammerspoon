@@ -23,7 +23,11 @@ Recording filenames/session IDs: __________
 - [ ] Test correct; wrong-correct; wrong-neutral-correct; already-active click; rapid wrong-correct.
 - [ ] Test timeout with no selection; timeout after errors; manual completion.
 - [ ] A second coder checks the same frames/counts; differences are resolved and noted.
-- [ ] Polling disagreements remain documented; they are not copied as final measurements.
+- [ ] Automatic/video disagreements remain documented; estimates are not copied as final measurements.
+- [ ] Check accessibility title notifications and poll-only fallback; compare rapid wrong-neutral-correct transitions to OBS.
+- [ ] Reveal command/return bracket and observed endpoint agree with the saved video within documented detection limits.
+- [ ] Encode a test run with tools/encode_session.py; check correct/incorrect/timeout/missing counts.
+- [ ] Google Forms results can be matched by coded participant AND condition; NASA-TLX remains outside this controller.
 
 ## 3A - Native setup and input
 

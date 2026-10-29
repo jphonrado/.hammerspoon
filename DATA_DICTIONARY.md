@@ -1,6 +1,6 @@
 # Measurement records and session guards
 
-Schema version: **1.0**. Raw software observations are auxiliary. Final study
+Schema version: **2.0** (new run folders only). Raw software observations are auxiliary. Final study
 measurements come from the saved video and are entered separately.
 
 ## Record layout
@@ -20,9 +20,10 @@ names and consent records do not belong in this folder.
 - `video_coding.csv`: identity/status rows plus **blank** final measurement
   columns. Enter the video-coded results here, preferably in a separately saved
   analysis copy while retaining the original generated records.
-- `main_data.csv`: primary per-trial analysis rows. The controller records its
-  operational estimates here; cross-check these values against the video and
-  correct the analysis copy when the recording disagrees.
+- `main_data.csv`: UNVERIFIED per-trial operational estimates. This is not the
+  final analysis source. `tools/encode_session.py` produces `analysis_trials.csv`
+  from a separate, checked OBS coding copy without substituting estimates.
+
 
 At participant level, `ACTIVE.json` and `.session-lock/` reserve the participant.
 They survive interruption/reload so a new first trial cannot silently restart an
@@ -38,17 +39,32 @@ Every CSV row carries `session_id`, `mode`, `participant`, `group`, `block`,
 `condition`, `orientation`, `tab_load`, `content_set`, `trial`, `target_id`, and
 `target_title`. Session-level events may leave trial-specific columns empty.
 Trial outcome records require the block, condition, set, trial and target fields.
+Plan-derived fields add `is_repeat` (0/1), `target_task_position` (1-based task
+position, equal to browser position with neutral-LAST), `task_tab_count` (5/15),
+and `visible_tab_count` (6/16). These describe the approved plan, not an automatic
+measurement of the actual native layout.
 
 ## Auxiliary events and outcomes
 
 - `wall_epoch`: wall-clock seconds for matching records to sessions/recordings.
 - `monotonic_s`: boot-relative seconds supplied by the controller.
 - `elapsed_s`: auxiliary elapsed interval, never a rendered-frame guarantee.
-- `observed_title`: title seen when the polling detector sampled the window.
+- `observed_title`: title seen at a polling sample or accessibility callback.
+- `observation_source`: `poll` or `accessibility` for observed transitions.
 - `aux_selection_count`, `aux_incorrect_count`, `aux_first_correct`: polling
   observations. A 0 remains 0; an unavailable value remains blank.
 - `reveal_command_monotonic_s`: time the controller requested reveal, not proof
   of the first visible video frame.
+- `mask_hide_returned_monotonic_s`: boot-relative marker immediately after mask
+  deletion returned. The command/return markers bracket software work; neither
+  establishes the rendered onset. Disk writes occur after mask removal.
+- `endpoint_monotonic_s`: observed endpoint captured before transition/outcome
+  storage. `observed_duration_s` is the elapsed observed interval, including
+  incomplete attempts; it is not completed RT for a timeout/interruption.
+- `detection_mode`: `accessibility_and_poll`, `poll_only`, or `manual`.
+- `max_poll_gap_s`: largest actual polling gap during the timed attempt.
+- `aux_incorrect_pages`: JSON list of wrong titles observed, including a return
+  to Study Start. Notifications may coalesce and samples may miss activations.
 - `auto_detection_elapsed_s`: time to automatic title detection.
 - `manual_ack_elapsed_s`: time to the facilitator's completion acknowledgment.
   This includes facilitator reaction delay and is not final retrieval time.
@@ -73,17 +89,41 @@ For a completed, verified trial, total switches = incorrect selections + 1.
 
 ## Primary analysis rows
 
-`main_data.csv` contains the dependent-variable fields
+`main_data.csv` contains provisional estimates using the dependent-variable field names
 `retrieval_time_s`, `total_tab_switches`, `incorrect_selections`,
 `first_selection_correct`, `no_selection`, and `technical_loss`. For an
 automatically completed trial, `retrieval_time_s` starts when the controller
 removes the gray mask and ends when the correct target tab is detected.
 `measurement_source` identifies this as a controller title-detection estimate,
-and `video_verified` is initially false. Review the OBS recording and update a
-separate analysis copy when the visible mask disappearance or correct tab
-selection differs from the software timestamps. Manual completion does not
+and `video_verified` is always false in the raw file. Counts are preserved for
+timed manual/timeout/interrupted outcomes when the detector was enabled. Missing
+first selection remains blank, not false; disabled detection leaves unavailable
+counts blank. `no_selection` and `technical_loss` remain blank pending review:
+a timeout may contain errors and an ordinary break need not lose data.
+Review OBS in a separate coding copy; export final data using
+[ENCODING.md](docs/ENCODING.md). Manual completion does not
 produce a retrieval-time estimate because the controller cannot establish the
 correct tab-selection endpoint.
+
+## Encoded outputs
+
+`analysis_trials.csv` preserves all 24 scheduled identities and joins only the
+manually coded OBS values. Missing terminal raw rows are `no_terminal_outcome`,
+which does not prove an unexposed trial after a crash. Coded completion requires
+frames/FPS, coder/recording, and consistent selection counts. `video_verified=1`
+identifies reviewed exposed outcomes; raw estimates are never used as fallback.
+
+`condition_summary.csv` includes mean completed RT with n, first-selection error
+rate with its observable-first-selection n, separately named activation error
+rate and timeouts. Incomplete RT stays missing. Interrupted/lost
+trials are retained in trial output and excluded from these descriptive summaries.
+
+**NASA-TLX is collected through the separate Google Forms survey.** The
+controller does not collect or score it. `survey_join_keys.csv` contains one row
+per condition with participant, session, block and condition IDs for a later
+join to Forms results. Match participant code AND condition, never row order;
+keep test/pilot data separate from main results. Preference/comfort responses
+also remain in the study's chosen survey/interview workflow.
 
 ## Integrity behavior
 
