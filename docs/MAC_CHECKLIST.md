@@ -21,7 +21,11 @@ Recording filenames/session IDs: __________
 - [ ] Mask disappearance, mouse pointer, target-active state and prompt audio are clear.
 - [ ] Automatic completion leaves a recognizable correct-target frame before masking.
 - [ ] Test correct; wrong-correct; wrong-neutral-correct; already-active click; rapid wrong-correct.
-- [ ] Test timeout with no selection; timeout after errors; manual completion.
+- [ ] Test timeout with no selection; timeout after errors; manual completion. The deadline is 20 seconds AFTER reveal, excluding audio.
+- [ ] Use ONE click per tab in H-L/H-H/V-L/V-H over several consecutive trials; confirm no lost first clicks.
+- [ ] Hold the correct-target button through detection, then release: Chrome receives that release before mask/reset; no stuck drag or extra selection follows.
+- [ ] Check buffered MOUSE_INPUT_TRACE against OBS (pass, blocked, pass_existing_release), including a queued release and the first click of the next trial.
+- [ ] Hold a button before reveal: controller stops without leaking a partial click into a timed trial; already exposed prompt is not replayed.
 - [ ] A second coder checks the same frames/counts; differences are resolved and noted.
 - [ ] Automatic/video disagreements remain documented; estimates are not copied as final measurements.
 - [ ] Check accessibility title notifications and poll-only fallback; compare rapid wrong-neutral-correct transitions to OBS.

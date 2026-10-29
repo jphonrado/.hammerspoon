@@ -112,6 +112,7 @@ function M:cancelTimers()
     local observer=self.titleObserver;self.titleObserver=nil
     pcall(function()observer:stop()end)
   end
+  if self.clickTraceTap then self.clickTraceTap:stop();self.clickTraceTap=nil end
 end
 function M:after(key,delay,fn)
   if self.timers[key] then self.timers[key]:stop() end
@@ -143,24 +144,118 @@ function M:validWindow(requireForeground)
   if requireForeground then
     local front=self.hs.window.frontmostWindow()
     if not front or front:id()~=self.windowID then return nil,"Study window lost focus" end
+    local app=win:application()
+    if not app:isFrontmost() then return nil,"Chrome is not the active application; activate it in Setup" end
   end
   return win
 end
 function M:unlock()
   if self.mouseTap then self.mouseTap:stop();self.mouseTap=nil end
+  self.passMouseUps=nil
+  -- Emergency/Setup releases input completely. A later natural mouse-up may
+  -- arrive with no observer installed; do not carry its old down into a new gate.
+  if not self.clickTraceTap then self.mousePassedDown=nil end
   if self.timers.lock then self.timers.lock:stop();self.timers.lock=nil end
 end
-function M:lock()
-  self:unlock()
-  local types=self.hs.eventtap.event.types
-  local events={}
-  for _,key in ipairs({"leftMouseDown","leftMouseUp","rightMouseDown","rightMouseUp",
-    "otherMouseDown","otherMouseUp","mouseMoved","leftMouseDragged",
-    "rightMouseDragged","otherMouseDragged","scrollWheel"}) do
-    if types[key] then events[#events+1]=types[key] end
+function M:mouseButtonsDown()
+  local buttons=self.hs.eventtap.checkMouseButtons()
+  for _,pressed in pairs(buttons) do if pressed==true then return true,buttons end end
+  return false,buttons
+end
+function M:traceMouse(event,decision)
+  if not self.cfg.mouseClickDiagnostics then return end
+  local t=self.hs.eventtap.event.types
+  local typ=event:getType()
+  local name
+  for _,key in ipairs({"leftMouseDown","leftMouseUp","rightMouseDown","rightMouseUp","otherMouseDown","otherMouseUp"}) do
+    if typ==t[key] then name=key;break end
   end
-  self.mouseTap=self.hs.eventtap.new(events,function() return true end)
-  self.mouseTap:start()
+  if not name then return end
+  self.mouseTrace=self.mouseTrace or {}
+  if #self.mouseTrace>=128 then self.mouseTraceDropped=(self.mouseTraceDropped or 0)+1;return end
+  local p=event:location()
+  local properties=self.hs.eventtap.event.properties
+  self.mouseTrace[#self.mouseTrace+1]={event=name,decision=decision,
+    phase=self.model and self.model.phase or "NO_SESSION",monotonic_s=self:now(),
+    x=p.x,y=p.y,click_count=event:getProperty(properties.mouseEventClickState),
+    button=event:getProperty(properties.mouseEventButtonNumber),
+    window_under_pointer=event:getProperty(properties.mouseEventWindowUnderMousePointer),
+    event_monotonic_ns=event:timestamp()}
+end
+function M:flushMouseTrace(record)
+  if not self.mouseTrace or #self.mouseTrace==0 then return true end
+  local extra={detail={events=self.mouseTrace,dropped=self.mouseTraceDropped or 0},observation_source="eventtap"}
+  if record then
+    local b=self.meta.plan[record.block_index]
+    extra.block=record.block_index;extra.condition=record.condition;extra.content_set=record.content_set
+    extra.orientation=b.orientation;extra.tab_load=b.tabLoad;extra.trial=record.trial_id
+    extra.target_id=record.target_id;extra.target_title=record.target_title
+  end
+  local ok=self:event("MOUSE_INPUT_TRACE",extra)
+  if ok then self.mouseTrace={};self.mouseTraceDropped=0 end
+  return ok
+end
+function M:startClickTrace()
+  local t=self.hs.eventtap.event.types
+  self.mousePassedDown={}
+  self.clickTraceTap=self.hs.eventtap.new({t.leftMouseDown,t.leftMouseUp,t.rightMouseDown,t.rightMouseUp,t.otherMouseDown,t.otherMouseUp},
+    function(event) return self:guard(function()
+      if self.model and self.model.phase=="RUNNING" then
+        local typ=event:getType()
+        local button=event:getProperty(self.hs.eventtap.event.properties.mouseEventButtonNumber)
+        if typ==t.leftMouseDown or typ==t.rightMouseDown or typ==t.otherMouseDown then
+          self.mousePassedDown[button]=true
+        else self.mousePassedDown[button]=nil end
+        self:traceMouse(event,"pass")
+      end
+      return false -- observe only; never generate or consume participant clicks
+    end) end)
+  self.clickTraceTap:start()
+  return self.clickTraceTap:isEnabled()
+end
+function M:lock()
+  -- Retain an existing gate: recreating it while a blocked button is held would
+  -- misclassify its eventual release as belonging to a click Chrome received.
+  if not self.mouseTap then
+    local types=self.hs.eventtap.event.types
+    local _,buttons=self:mouseButtonsDown()
+    self.passMouseUps={}
+    for index,pressed in pairs(buttons) do
+      if type(index)=="number" and pressed then self.passMouseUps[index-1]=true end
+    end
+    -- Named aliases are documented too; keep them for older/native variants.
+    for name,button in pairs({left=0,right=1,middle=2}) do
+      if buttons[name] then self.passMouseUps[button]=true end
+    end
+    -- A physical release can be queued while title/disk callbacks run. Retain
+    -- any down our running monitor passed, even if the instantaneous poll is up.
+    for button in pairs(self.mousePassedDown or {}) do self.passMouseUps[button]=true end
+    local events={}
+    for _,key in ipairs({"leftMouseDown","leftMouseUp","rightMouseDown","rightMouseUp",
+      "otherMouseDown","otherMouseUp","mouseMoved","leftMouseDragged",
+      "rightMouseDragged","otherMouseDragged","scrollWheel"}) do
+      if types[key] then events[#events+1]=types[key] end
+    end
+    self.mouseTap=self.hs.eventtap.new(events,function(event) return self:guard(function()
+      local typ,button=event:getType(),nil
+      if typ==types.leftMouseUp then button=0
+      elseif typ==types.rightMouseUp then button=1
+      elseif typ==types.otherMouseUp then
+        button=event:getProperty(self.hs.eventtap.event.properties.mouseEventButtonNumber)
+      end
+      -- A target can activate on mouse-down. Its matching mouse-up must reach
+      -- Chrome even though protection has already resumed after completion.
+      if button~=nil and self.passMouseUps[button] then
+        self.passMouseUps[button]=nil
+        if self.mousePassedDown then self.mousePassedDown[button]=nil end
+        self:traceMouse(event,"pass_existing_release")
+        return false
+      end
+      self:traceMouse(event,"blocked")
+      return true
+    end) end)
+    self.mouseTap:start()
+  end
   if self.mouseTap.isEnabled and not self.mouseTap:isEnabled() then
     self:unlock(); return nil,"Mouse lock unavailable: check Accessibility/Input Monitoring"
   end
@@ -340,6 +435,7 @@ function M:approveSetup()
   end
   local ok,why=self.model:ready();if not ok then return self:notice(why) end
   self.setupApproved=true
+  win:application():activate(false)
   win:focus()
   local masked,maskErr=self:showMask()
   if not masked then self.model:resetPreflight();self.setupApproved=false;return self:notice(maskErr) end
@@ -411,6 +507,7 @@ function M:startTrial(automatic)
   if self.model.phase~="READY" or not self.setupApproved then return self:notice("Enter Setup and approve this trial first") end
   local win,err=self:validWindow(true)
   if not win then return self:emergency(err) end
+  if self:mouseButtonsDown() then return self:emergency("Release mouse buttons before starting/resetting the trial") end
   self:cancelTimers()
   local ok,why=self.model:prepare();if not ok then return self:notice(why) end
   self.setupApproved=false
@@ -437,6 +534,7 @@ function M:startTrial(automatic)
       self.lastTitle=self.cfg.neutralTitle
       self.aux={selections=0,incorrect=0,first=nil,pages={},maxPollGap=0}
       self.detectionMode=nil;self.hideReturnedTime=nil;self.lastPollTime=nil
+      self.mouseTrace={};self.mouseTraceDropped=0
       local detail="Neutral title/frame/pointer checked; "..(automatic==true
         and "native layout relies on retained all-tabs-visible block approval"
         or "native layout manually approved before this start")
@@ -489,6 +587,10 @@ function M:reveal()
   if not self.mouseTap or (self.mouseTap.isEnabled and not self.mouseTap:isEnabled()) then
     return self:emergency("Input lock was lost before reveal")
   end
+  if self:mouseButtonsDown() or next(self.passMouseUps or {})~=nil then
+    return self:emergency("Mouse button held before reveal; exposed prompt will not be replayed")
+  end
+  if not self:startClickTrace() then return self:emergency("Click diagnostic event tap failed to start") end
   self.lastTitle=self.cfg.neutralTitle -- Known baseline established BEFORE input release.
   self:armTitleObserver(win)
   if self.fatal then return end
@@ -572,6 +674,7 @@ function M:observeTitle(source)
 end
 function M:recordOutcome(record,source,endpoint)
   if not record or not self.store then return true end
+  if not self:flushMouseTrace(record) then return false end
   local b=self.meta.plan[record.block_index]
   local row=copy(record)
   row.block=record.block_index;row.trial=record.trial_id
@@ -624,19 +727,29 @@ function M:finish(status,endpoint)
   self:event("TRIAL_OUTCOME",{detail=status});if self.fatal then return end
   if not self:checkpoint() then return end
   local locked,err=self:lock();if not locked then return self:emergency(err) end
-  -- Retain the completed page for OBS, excluding this hold from the endpoint.
-  self:after("outcome",self.cfg.outcomeHoldSeconds,function()
-    local masked,why=self:showMask()
-    if not masked then return self:emergency(why) end
-    self.model:settleOutcome();self.setupApproved=false;self.revealTime=nil
-    if self.model.phase=="BLOCK_COMPLETE" then self.autoBlockApproval=nil end
-    if not self:checkpoint() then return end
-    if self.model.phase=="BLOCK_COMPLETE" then
-      self:notice("Block finished. Collect workload ratings, then use Next block.")
-    elseif not self:scheduleNextTrial(status) then
-      self:notice("Trial finished. Enter Setup to reset viewport and approve the next trial.")
-    end
-  end)
+  -- Complete the existing click before remasking/resetting. New presses/motion
+  -- stay blocked, and the release wait is outside the recorded RT interval.
+  local releaseDeadline=self:now()+self.cfg.outcomeHoldSeconds+self.cfg.mouseReleaseWaitSeconds
+  self:after("outcome",self.cfg.outcomeHoldSeconds,function()self:settleAfterMouseRelease(status,releaseDeadline)end)
+end
+function M:settleAfterMouseRelease(status,deadline)
+  if self.fatal or not self.model or self.model.phase~="OUTCOME" then return end
+  if self:mouseButtonsDown() or next(self.passMouseUps or {})~=nil then
+    if self:now()>=deadline then return self:emergency("Mouse button did not release after outcome; inspect click trace") end
+    self:after("outcome",0.02,function()self:settleAfterMouseRelease(status,deadline)end)
+    return
+  end
+  if not self:flushMouseTrace(self.model.currentRecord) then return end
+  local masked,why=self:showMask()
+  if not masked then return self:emergency(why) end
+  self.model:settleOutcome();self.setupApproved=false;self.revealTime=nil
+  if self.model.phase=="BLOCK_COMPLETE" then self.autoBlockApproval=nil end
+  if not self:checkpoint() then return end
+  if self.model.phase=="BLOCK_COMPLETE" then
+    self:notice("Block finished. Collect workload ratings, then use Next block.")
+  elseif not self:scheduleNextTrial(status) then
+    self:notice("Trial finished. Enter Setup to reset viewport and approve the next trial.")
+  end
 end
 function M:emergency(reason)
   local endpoint=self:now()

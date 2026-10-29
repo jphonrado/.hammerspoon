@@ -1,19 +1,19 @@
-# Orlando implementation fixes
+# Orlando 20-second and single-click update
 
-Baseline: jphonrado/.hammerspoon, implemented-hammerspoon at ed02f4bbd947162a1e5088843a48226a865a018c.
-Local repaired commit: 809455c. GitHub has not been updated.
+Based on implemented-hammerspoon at 44e1b48a62a53003ceae2a61db4e601a408359f4; local repaired commit 6161187. GitHub has not been updated by this session.
 
-Orlando-Hammerspoon/ contains the complete revised source and existing recordings. Read its README.md before installation. Existing participant records are not included and must be preserved.
+The complete revised source is in Orlando-Hammerspoon/. For an existing installation, the runtime changes are in study/config.lua and study/controller.lua. Preserve existing recordings, participant records, local recordingProfile values and mainStudyEnabled setting. Saved Hammerspoon calibration keys are unchanged.
 
-Orlando-implementation-fixes.patch can be applied to the baseline checkout:
+The included patch passes git apply --check against the baseline above:
 
     git switch implemented-hammerspoon
-    git apply --check /path/to/Orlando-implementation-fixes.patch
-    git apply /path/to/Orlando-implementation-fixes.patch
+    git apply --check /path/to/Orlando-20s-single-click.patch
+    git apply /path/to/Orlando-20s-single-click.patch
 
-If your branch changed since the baseline, review conflicts instead of overwriting files.
+If your local config differs (for example it already says 30 seconds), merge rather than overwrite it: set timeoutSeconds=20, version="2.2.1", add mouseReleaseWaitSeconds=2.0 and mouseClickDiagnostics=true, and use the revised controller.lua. Keep your measured recording/device profile. Reload Hammerspoon after installing. Never run old and new controllers simultaneously.
 
-Read Orlando-Hammerspoon/docs/ORLANDO_AUDIT_2026-10-29.md for findings and docs/ENCODING.md for data exports.
-NASA-TLX stays in Google Forms; no survey collection/scoring was added.
+Read Orlando-Hammerspoon/docs/CLICK_FIX.md for the finding and Mac verification. Deadline is 20 seconds AFTER reveal, excluding audio. Single clicks should complete with their natural release; do not instruct participants to double-click as a workaround.
 
-Verification: 96 Lua behavioral cases, 10 Lua syntax checks, 15 Python encoding tests; full 24-entry simulated export. No native Mac/Chrome/OBS test was performed.
+111 Lua behavioral cases + 15 Python encoding cases and 10 Lua syntax checks pass. The old release-swallowing behavior was reproduced in a simulation, not on the study Mac. A saved native Mac/Chrome/OBS test is still required to confirm the reported symptom is resolved.
+
+NASA-TLX stays in Google Forms; titles, audio, target positions and opening mechanism are preserved. Historical delivery patch/readme files and legacy logs are omitted from this package to avoid confusion.

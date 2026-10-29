@@ -13,11 +13,11 @@ Updated 29 October 2026. Original issue numbers are 2 (measurement), 3 (controll
 
 ## Local evidence
 
-`LOCAL_CHECKS.json` records **10/10 Lua syntax checks** and **96 passing Lua behavioral cases** plus **15 Python encoding tests**:
+`LOCAL_CHECKS.json` records **10/10 Lua syntax checks** and **111 passing Lua behavioral cases** plus **15 Python encoding tests**:
 
 - 12 pure lifecycle cases.
 - 24 storage/material/allocation integration cases using real temporary files.
-- 60 Mac-adapter/loader cases using simulated Hammerspoon APIs.
+- 75 Mac-adapter/loader cases using simulated Hammerspoon APIs.
 
 The adapter checks include all four groups' complete 24-entry flows, stale-mask rejection, session gates, no renewed lock after failed logging, interruption handling, completed-session guards, exception cleanup and shutdown-hook chaining. The separate model/storage integration also verifies each group and the 16-slot allocation. These are simulations, not participant observations or native-device validation.
 
@@ -34,3 +34,7 @@ Version2.1.0 restores three-second automatic progression after normal completion
 ## Orlando audit, version 2.2.0
 
 Audited implemented-hammerspoon at ed02f4b. Fixed timeout/interruption classification, reveal/endpoint disk-latency contamination, unavailable-count handling, and added optional accessibility observations with polling fallback. Added repeat/position/count metadata and a checked OBS encoding/export tool. NASA-TLX remains in Google Forms; only participant/condition join keys are exported. See ORLANDO_AUDIT_2026-10-29.md and ENCODING.md. Native Mac verification remains NOT RUN.
+
+## Single-click transition and 20-second deadline, version 2.2.1
+
+Baseline: implemented-hammerspoon at 44e1b48. Timeout is now 20 seconds from reveal. A pre-lock click retains its matching release; queued releases are tracked even when a physical-button poll is already up. Neutral/pointer reset waits for release outside RT, and held pre-reveal buttons interrupt without replay. Chrome activity and buffered click traces support native diagnosis. Two targeted regression replays fail on the old baseline and all current cases pass. Native reproduction/validation remains NOT RUN; see CLICK_FIX.md.

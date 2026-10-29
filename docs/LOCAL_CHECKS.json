@@ -1,7 +1,7 @@
 {
   "passed": true,
   "runtime": "Lua 5.4 via development-only Python lupa",
-  "package_root": "/workspace/scratch/a331770d76c2/orlando-implementation",
+  "package_root": "/workspace/scratch/a331770d76c2/orlando-click-fix",
   "syntax": [
     {
       "file": "init.lua",
@@ -190,7 +190,7 @@
     {
       "suite": "controller",
       "passed": true,
-      "case_count": 60,
+      "case_count": 75,
       "cases": [
         {
           "name": "adapter blocks navigation in ready and outcome hold",
@@ -431,11 +431,71 @@
         {
           "name": "observed polling gaps are recorded rather than claiming 50ms precision",
           "passed": true
+        },
+        {
+          "name": "trial timeout is 20 seconds from reveal, excluding the audio prompt",
+          "passed": true
+        },
+        {
+          "name": "target mouse-down followed by completion still delivers its mouse-up to Chrome",
+          "passed": true
+        },
+        {
+          "name": "right and extra buttons preserve only the release of a pre-lock press",
+          "passed": true
+        },
+        {
+          "name": "new masked clicks remain blocked across repeated lock calls",
+          "passed": true
+        },
+        {
+          "name": "held target click delays reset until release without extending retrieval time",
+          "passed": true
+        },
+        {
+          "name": "unreleased outcome click stops safely without a second outcome or replay",
+          "passed": true
+        },
+        {
+          "name": "a held button before reset retains the unexposed trial",
+          "passed": true
+        },
+        {
+          "name": "premature held click cannot leak into the timed trial at reveal",
+          "passed": true
+        },
+        {
+          "name": "a fully blocked pre-reveal click does not eat the first real click",
+          "passed": true
+        },
+        {
+          "name": "Setup activates Chrome without a synthetic click and checks app activity",
+          "passed": true
+        },
+        {
+          "name": "click trace is diagnostic only and does not count clicks as selections",
+          "passed": true
+        },
+        {
+          "name": "queued release is preserved even when the instantaneous physical poll is already up",
+          "passed": true
+        },
+        {
+          "name": "matching-release protection also works with diagnostic logging disabled",
+          "passed": true
+        },
+        {
+          "name": "a single click completes the next automatic trial after releasing the prior click",
+          "passed": true
+        },
+        {
+          "name": "pause with a held click does not leave stale button history on resume",
+          "passed": true
         }
       ]
     }
   ],
-  "exported_simulated_examples": "/workspace/scratch/a331770d76c2/orlando-navigation-simulated",
+  "exported_simulated_examples": null,
   "native_macos_tested": false,
   "limitations": [
     "No real Chrome tabs, Hammerspoon APIs, input hooks or OBS capture were exercised.",
@@ -444,12 +504,12 @@
   "source_hashes": {
     "init.lua": "f467432bf90edcf3a570f57d916773896c13ace2e818a24064fc90916fee4855",
     "study/allocation.lua": "6a9078207e7d1c8e89d8128ad2764d98e42991e95eae61712b25a753d5055f81",
-    "study/config.lua": "8ba21b565bea2758f7b8d2033fe33a8c351afecae91226f417451a48e76b1640",
-    "study/controller.lua": "e9b4cc930eeea393eee77ec253765734ad6004e3680d760cc428cb9a1ea00153",
+    "study/config.lua": "8ea2b24c7a5ad410d646cb3397055951548f1ae30a36b0f6de5f404ce16fe172",
+    "study/controller.lua": "c0f4c408db6ebf5a8bbd7a9d36ab04c6534079c49e060233d0a57181e89ce0e9",
     "study/materials.lua": "fbc7a3ae2a041528463221f7fb8a98dca82b2dd17d1b2aefcafc8f3ac8ffd01a",
     "study/model.lua": "b034b4c9211d2a71d0fe76c462b7b176217640cf668d67d4a7bda8166a2fde10",
     "study/storage.lua": "f2032830b225ac9eb6d628056d7e03cb136e0cce5a9c7de67a07a4661c94c9cf",
-    "tests/controller_spec.lua": "1c7ab2e6ba72fa7dec3174376983246b24673f5c2c9ac140c8ecba5b9610db7b",
+    "tests/controller_spec.lua": "f572c83294456620f0ec27a2c7d21d2a88d7d89716d67155aa94217e9bddcc09",
     "tests/integration_spec.lua": "c066f61022bfa836fa0f7ff594546e084617fcd054db59927c64045ababc7ce4",
     "tests/model_spec.lua": "a95a8b11422a6113b4bd158798f17ce88a3f22b945e2309f54483fd6ff30cd7d"
   }

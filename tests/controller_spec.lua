@@ -18,7 +18,7 @@ local function test(name, body)
 end
 
 local function fixture(group)
-    local env = {time = 10, timers = {}, title = "Study Start", notices = {},
+    local env = {time = 10, timers = {}, title = "Study Start", notices = {},buttons={},
         front = true, audioAvailable = true, playCalls = 0, lockEnabled = false,
         position = {x = 500, y = 400}, frame = {x = 40, y = 40, w = 1000, h = 700}}
     local hs = {timer = {}, eventtap = {event = {types = {}}}, canvas = {windowLevels = {overlay = 1}},
@@ -77,10 +77,14 @@ local function fixture(group)
         "rightMouseDragged","otherMouseDragged","scrollWheel"}) do
         hs.eventtap.event.types[key] = index
     end
-    hs.eventtap.new = function(_,callback)
-        local tap = {callback = callback, enabled = false}
-        function tap:start() self.enabled = true; env.lockEnabled = true end
-        function tap:stop() self.enabled = false; env.lockEnabled = false end
+    hs.eventtap.checkMouseButtons=function()return env.buttons end
+    hs.eventtap.event.properties={mouseEventButtonNumber=1,mouseEventClickState=2,mouseEventWindowUnderMousePointer=3}
+    hs.eventtap.new = function(events,callback)
+        local gate=false
+        for _,typ in ipairs(events) do if typ==hs.eventtap.event.types.mouseMoved then gate=true end end
+        local tap = {callback = callback, enabled = false,isGate=gate}
+        function tap:start() self.enabled = true;if self.isGate then env.lockEnabled = true end end
+        function tap:stop() self.enabled = false;if self.isGate then env.lockEnabled = false end end
         function tap:isEnabled() return self.enabled end
         return tap
     end
@@ -88,7 +92,9 @@ local function fixture(group)
         env.keyStrokeKey = key
         if not env.neutralFails then env.title = "Study Start" end
     end
-    local app = {name = function() return "Google Chrome" end}
+    local app = {name = function() return "Google Chrome" end,
+        isFrontmost=function()return not env.inactiveApp end,
+        activate=function()env.inactiveApp=false;env.activated=true;return true end}
     local win = {}
     function win:id() return 7 end
     function win:application() return app end
@@ -105,6 +111,18 @@ local function fixture(group)
     end
     hs.window.get = function(id) return id == 7 and not env.windowMissing and win or nil end
     hs.window.frontmostWindow = function() return env.front and win or nil end
+    function env.mouseEvent(name,button)
+        local ev={}
+        function ev:getType()return hs.eventtap.event.types[name]end
+        function ev:getProperty(prop)
+            if prop==1 then return button or (name:find("right") and 1 or 0)end
+            if prop==2 then return 1 end
+            if prop==3 then return 7 end
+        end
+        function ev:location()return {x=env.position.x,y=env.position.y}end
+        function ev:timestamp()return env.time*1e9 end
+        return ev
+    end
     hs.canvas.new = function(frame)
         local canvas = {rect = frame}
         function canvas:appendElements() return self end
@@ -1040,6 +1058,191 @@ test("observed polling gaps are recorded rather than claiming 50ms precision",fu
     local seen=false
     for _,event in ipairs(s.events) do if event.name=="POLL_GAP" then seen=true end end
     eq(seen,true)
+end)
+
+test("trial timeout is 20 seconds from reveal, excluding the audio prompt",function()
+    local c,e,s=fixture()
+    eq(c.cfg.timeoutSeconds,20)
+    startPrompt(c,e);e.advance(12)
+    eq(c.model.phase,"PROMPT")
+    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
+    local reveal=c.revealTime
+    e.advance(19.99);eq(c.model.phase,"RUNNING")
+    e.advance(0.02);eq(c.model.phase,"OUTCOME")
+    eq(s.trials[1].status,"timeout");eq(s.trials[1].retrieval_time_s,nil)
+    assert(math.abs(s.trials[1].observed_duration_s-20)<1e-6)
+end)
+
+test("target mouse-down followed by completion still delivers its mouse-up to Chrome",function()
+    local c,e,s=fixture()
+    running(c,e)
+    eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseDown")),false)
+    e.buttons={[1]=true,left=true}
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    eq(c.model.phase,"OUTCOME");assert(c.mouseTap)
+    e.buttons={}
+    eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),false,"Matching release must not be swallowed")
+    e.advance(Config.outcomeHoldSeconds)
+    eq(c.model.phase,"READY");eq(#s.trials,1)
+    local found=false
+    for _,event in ipairs(s.events) do
+        if event.name=="MOUSE_INPUT_TRACE" then
+            for _,input in ipairs(event.context.detail.events) do
+                if input.decision=="pass_existing_release" then found=true end
+            end
+        end
+    end
+    eq(found,true,"The passed release must be auditable")
+end)
+
+test("right and extra buttons preserve only the release of a pre-lock press",function()
+    for _,case in ipairs({{index=2,name="rightMouseUp",button=1},{index=5,name="otherMouseUp",button=4}}) do
+        local c,e=fixture()
+        e.buttons={[case.index]=true}
+        assert(c:lock())
+        e.buttons={}
+        eq(c.mouseTap.callback(e.mouseEvent(case.name,case.button)),false)
+        eq(c.mouseTap.callback(e.mouseEvent(case.name,case.button)),true,"Only one matching release passes")
+    end
+end)
+
+test("new masked clicks remain blocked across repeated lock calls",function()
+    local c,e=fixture()
+    assert(c:lock())
+    eq(c.mouseTap.callback(e.mouseEvent("leftMouseDown")),true)
+    e.buttons={[1]=true}
+    local original=c.mouseTap
+    assert(c:lock());eq(c.mouseTap,original,"Retain the gate and button history")
+    e.buttons={}
+    eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),true)
+end)
+
+test("held target click delays reset until release without extending retrieval time",function()
+    local c,e,s=fixture()
+    running(c,e)
+    e.time=c.revealTime+0.4;e.buttons={[1]=true}
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    e.advance(Config.outcomeHoldSeconds+0.1)
+    eq(c.model.phase,"OUTCOME");eq(c.mask,nil)
+    eq(e.focusTabCalls,1,"No neutral reset while the target click is held")
+    assert(math.abs(s.trials[1].retrieval_time_s-0.4)<1e-8)
+    e.buttons={};eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),false)
+    e.advance(0.03);eq(c.model.phase,"READY")
+    assert(math.abs(s.trials[1].retrieval_time_s-0.4)<1e-8)
+end)
+
+test("unreleased outcome click stops safely without a second outcome or replay",function()
+    local c,e,s=fixture()
+    c.cfg.autoAdvance=true
+    running(c,e);e.buttons={[1]=true}
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    e.advance(Config.outcomeHoldSeconds+Config.mouseReleaseWaitSeconds+0.1)
+    eq(c.model.phase,"PAUSED");eq(c.model.trialIndex,2)
+    eq(#s.trials,1);eq(e.playCalls,1);eq(e.lockEnabled,false)
+end)
+
+test("a held button before reset retains the unexposed trial",function()
+    local c,e,s=fixture()
+    c:approveSetup();e.buttons={[1]=true};c:startTrial()
+    eq(c.model.phase,"PAUSED");eq(c.model.trialIndex,1)
+    eq(#s.trials,0);eq(e.playCalls,0)
+end)
+
+test("premature held click cannot leak into the timed trial at reveal",function()
+    local c,e,s=fixture()
+    startPrompt(c,e)
+    eq(c.mouseTap.callback(e.mouseEvent("leftMouseDown")),true)
+    e.buttons={[1]=true}
+    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
+    eq(c.model.phase,"PAUSED");eq(c.model.trialIndex,2)
+    eq(s.trials[1].status,"interrupted");eq(s.trials[1].timed_started,false)
+end)
+
+test("a fully blocked pre-reveal click does not eat the first real click",function()
+    local c,e,s=fixture()
+    startPrompt(c,e)
+    eq(c.mouseTap.callback(e.mouseEvent("leftMouseDown")),true)
+    eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),true)
+    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
+    eq(c.mouseTap,nil)
+    eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseDown")),false)
+    eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseUp")),false)
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    eq(s.trials[1].total_tab_switches,1);eq(s.trials[1].first_selection_correct,true)
+end)
+
+test("Setup activates Chrome without a synthetic click and checks app activity",function()
+    local c,e,s=fixture()
+    e.inactiveApp=true
+    c.hs.eventtap.leftClick=function()error("Synthetic study clicks are forbidden")end
+    startPrompt(c,e)
+    eq(e.activated,true);eq(e.inactiveApp,false)
+    e.inactiveApp=true -- Window can still be geometrically foremost, app inactive.
+    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
+    eq(c.model.phase,"PAUSED");eq(s.trials[1].timed_started,false)
+end)
+
+test("click trace is diagnostic only and does not count clicks as selections",function()
+    local c,e,s=fixture()
+    running(c,e)
+    for _=1,2 do
+        eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseDown")),false)
+        eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseUp")),false)
+    end
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    eq(s.trials[1].total_tab_switches,1)
+    eq(s.trials[1].incorrect_selections,0)
+end)
+
+test("queued release is preserved even when the instantaneous physical poll is already up",function()
+    local c,e=fixture()
+    running(c,e)
+    c.clickTraceTap.callback(e.mouseEvent("leftMouseDown"))
+    e.buttons={} -- Physical release happened; its event has not reached Chrome yet.
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    e.advance(Config.outcomeHoldSeconds+0.05)
+    eq(c.model.phase,"OUTCOME","Do not reset before the queued release is delivered")
+    eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),false)
+    e.advance(0.03);eq(c.model.phase,"READY")
+end)
+
+test("matching-release protection also works with diagnostic logging disabled",function()
+    local c,e,s=fixture()
+    c.cfg.mouseClickDiagnostics=false
+    running(c,e)
+    c.clickTraceTap.callback(e.mouseEvent("leftMouseDown"))
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),false)
+    for _,event in ipairs(s.events) do assert(event.name~="MOUSE_INPUT_TRACE") end
+end)
+
+test("a single click completes the next automatic trial after releasing the prior click",function()
+    local c,e,s=fixture()
+    c.cfg.autoAdvance=true
+    running(c,e)
+    for trialIndex=1,2 do
+        eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseDown")),false)
+        e.buttons={[1]=true}
+        e.title=c.model:currentTrial().targetTitle;c:poll()
+        e.buttons={};eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),false)
+        eq(#s.trials,trialIndex);eq(s.trials[trialIndex].total_tab_switches,1)
+        e.advance(Config.outcomeHoldSeconds+Config.interTrialDelaySeconds+0.02)
+        if trialIndex==1 then
+            eq(c.model.phase,"PROMPT")
+            e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
+        end
+    end
+end)
+
+test("pause with a held click does not leave stale button history on resume",function()
+    local c,e,s=fixture()
+    running(c,e)
+    c.clickTraceTap.callback(e.mouseEvent("leftMouseDown"));e.buttons={[1]=true}
+    c:emergency("Participant break")
+    e.buttons={} -- Natural release after emergency, with no controller tap installed.
+    c:setup();running(c,e)
+    eq(c.model.phase,"RUNNING");eq(c.model.trialIndex,2)
+    eq(c.mouseTap,nil);eq(#s.trials,1)
 end)
 
 return results

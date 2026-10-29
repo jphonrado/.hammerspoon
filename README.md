@@ -1,7 +1,7 @@
 # HCI2000 Hammerspoon study controller
 
 Revised controller for **Effects of Browser Tab Orientation & Tab Load on Navigation Performance**.
-Version **2.2.0**, audited 29 October 2026 against `implemented-hammerspoon` at `ed02f4b`. See [the Orlando audit](docs/ORLANDO_AUDIT_2026-10-29.md) and [encoding guide](docs/ENCODING.md).
+Version **2.2.1**, updated 29 October 2026 against `implemented-hammerspoon` at `44e1b48`. See [the click/20-second update](docs/CLICK_FIX.md). See [the Orlando audit](docs/ORLANDO_AUDIT_2026-10-29.md) and [encoding guide](docs/ENCODING.md).
 
 ## What this folder is
 
@@ -13,7 +13,7 @@ The controller masks/reveals Chrome's tab region, plays the group's current targ
 
 The code was implemented and tested locally with Lua 5.4, simulated Hammerspoon APIs and real temporary record files. Exact test counts and source fingerprints are in `docs/LOCAL_CHECKS.json`.
 
-The current local checks pass **96 Lua behavioral cases and all 10 Lua syntax checks** (12 model, 24 integration, 60 controller/loader), plus **15 Python encoding tests**. `docs/MILESTONES.md` tracks implementation versus native-device verification for 2A-4B.
+The current local checks pass **111 Lua behavioral cases and all 10 Lua syntax checks** (12 model, 24 integration, 75 controller/loader), plus **15 Python encoding tests**. `docs/MILESTONES.md` tracks implementation versus native-device verification for 2A-4B.
 
 **The actual macOS/Chrome/OBS checks have not been run here.** Input permissions, audio decoding/playback, native tab geometry, mask coverage and captured video must pass `docs/MAC_CHECKLIST.md` on the study laptop. Main-study mode is disabled by default; test and pilot modes work without declaring those checks complete.
 
@@ -99,7 +99,7 @@ interTrialDelaySeconds = 3.0,
 autoAdvanceAfterTimeout = true,
 ```
 
-These are researcher settings, not participant controls. A completed automatic/manual acknowledgment or ordinary timeout starts a three-second masked countdown after the 0.30-second outcome hold. The next trial then resets and verifies Study Start, the pointer, and the bound window before playing its scheduled prompt. The first prompt of each block remains an explicit start.
+These are researcher settings, not participant controls. The trial limit is **20 seconds after mask disappearance**, excluding the prompt. A completed automatic/manual acknowledgment or ordinary timeout starts a three-second masked countdown after the minimum 0.30-second outcome hold and completion of the current mouse-button release. The next trial then resets and verifies Study Start, the pointer, and the bound window before playing its scheduled prompt. The first prompt of each block remains an explicit start.
 
 Automatic mode requires the researcher to confirm once at block preparation that **all task tabs AND Study Start are visible without tab-list scrolling, collapsed sections, or hidden tabs**. The controller checks window/frame, neutral title, mask geometry, and pointer; it does not prove tab order, exact count, panel width, visibility, or OBS status automatically. If scrolling is needed, choose **Manual trials** and reset the viewport before each trial. No unvalidated scrolling automation is claimed. Do not change geometry or reduce tab size merely to obtain automatic mode outside the frozen study settings.
 
@@ -114,7 +114,7 @@ Keep preparation and researcher answer sheets out of the participant's view. Per
 3. Enter **Setup** (`Ctrl+Alt+Cmd+S`). Save the study window/frame with **W**, common pointer with **C**, and H/V mask corners with **H**/**V** as needed. Keep preparation outside the participant's view. Recalibrate after display/window changes.
 4. Press **A** with the same modifiers. Confirm actual tab count/order, orientation, panel width, aids, starting viewport and OBS. Then choose **All tabs visible** for automatic block flow, or **Manual trials** if scrolling/reset checks are needed. This choice records the scope of the approval accurately.
 5. Press **Return** with the modifiers to start the first trial. The controller selects the last neutral tab and verifies its title, frame and pointer before playing the prompt. Tabs stay masked/input locked until audio completion and the configured reveal delay.
-6. When the participant selects the correct target, completion is recorded automatically. The correct page remains visible for 0.30 seconds for OBS, then the mask returns and the next prompt begins after a three-second countdown. **Do not press S/A/Return between ordinary automatic trials.** Wrong selections do not end a trial. **.** remains a manual completion acknowledgment if detection is unavailable; video supplies the final endpoint.
+6. When the participant selects the correct target, completion is recorded automatically. The correct page remains visible for at least 0.30 seconds for OBS; its click release is delivered before reset, then the mask returns and the next prompt begins after a three-second countdown. **Do not press S/A/Return between ordinary automatic trials.** Wrong selections do not end a trial. **.** remains a manual completion acknowledgment if detection is unavailable; video supplies the final endpoint.
 7. **P** pauses/cancels the next prompt and **Esc** provides emergency release (both with modifiers). A break during an exposed trial documents/consumes it without replay. Resume through **S → A → Return**, approving the current setup again. In manual/scrolling mode, use this sequence between trials to restore the tab-list viewport.
 8. After six scheduled entries, the controller stops for that condition's TLX ratings. Press **N** after the ratings to prepare the next block; approve and start it explicitly. After the final block, **N** closes the session. Complete the weighting/interview under the study protocol.
 9. Retain original logs and OBS files. Code final measures in a separate copy of `video_coding.csv`; compare and document discrepancies with auxiliary records. No automatic estimate becomes a final measurement without video review.
@@ -138,7 +138,7 @@ All letter/key shortcuts below use **Ctrl+Alt+Cmd** together. On macOS, Alt is O
 | T | Show current participant/group/block/trial/phase |
 | E | End session; exposed/interrupted sessions retain their review guard |
 
-During input lock, use keyboard shortcuts: mouse clicks, including the HCI menu, are intentionally blocked. Esc with the modifiers is always the emergency release. The input-lock watchdog also stops the procedure rather than silently allowing a trial to continue.
+During input lock, use keyboard shortcuts: new mouse clicks, including the HCI menu, are intentionally blocked. A release matching a press Chrome already received passes through so its click cannot get stuck. Keep click buttons released until the tabs are revealed; participants can keep holding the mouse itself. Esc with the modifiers is always the emergency release. The input-lock watchdog also stops the procedure rather than silently allowing a trial to continue.
 
 ## Breaks, failures and restarts
 
@@ -215,3 +215,7 @@ These references describe APIs; they do not establish that the group's hardware/
 Follow [docs/ENCODING.md](docs/ENCODING.md) to prepare an OBS coding copy and export checked trial/condition CSVs. The exporter validates frames, FPS, counts and identities, preserves zero versus missing, and never substitutes automatic estimates. `survey_join_keys.csv` provides participant code plus condition for linking the separate Google Forms NASA-TLX results. Block order is not condition. No form, questionnaire UI, workload scoring or audio is changed by this audit.
 
 Encoding test command: `python -m unittest discover -s tests -p "test_*.py"`.
+
+## Click transition fix (2.2.1)
+
+The protected-phase gate now preserves a release belonging to a press that Chrome already received. Remasking and pointer/neutral reset wait for that release, bounded by a two-second post-outcome safety wait; retrieval timing has already stopped. Pre-reveal held buttons stop the exposed trial rather than leaking a partial click into it. Setup activates Chrome and reveal checks the active application as well as the study window. Buffered `MOUSE_INPUT_TRACE` events distinguish passed clicks, protected-phase blocked clicks, and passed existing releases; they are diagnostics, not tab-selection counts. `mouseClickDiagnostics=false` disables trace logging while retaining matching-release protection. See [CLICK_FIX.md](docs/CLICK_FIX.md) for the Mac reproduction procedure.
