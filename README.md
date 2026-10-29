@@ -85,7 +85,7 @@ This release starts from the group's synced commit `ff67ebb`, not the obsolete f
 
 The existing local HTML launcher still opens Study Start first. **Move Study Start to LAST before approving the block**: browser tab 6 at low load, 16 at high load. Task-page browser indices now equal task positions; do not add one. This preserves the synced Lua contract. The earlier paper's neutral-first wording/table note and launcher instructions must be synchronized separately before main collection; this update does not edit those projects.
 
-The local HTML pages also retain the earlier titles for nine scored targets. `docs/TITLE_COMPATIBILITY.json` lists the exact accepted canonical/legacy labels and all 24 page-title differences. Use one consistent title version across main participants and verify prompt/target identity; compatibility detection does not establish equal stimulus difficulty.
+The local HTML pages also retain the earlier titles for nine scored targets. `docs/TITLE_COMPATIBILITY.json` lists the exact accepted canonical/legacy labels and all 24 page-title differences. Use one consistent title version across main participants and verify prompt/target identity; compatibility detection does not establish equal stimulus difficulty. The older statistical-analysis schedule/forms still use the earlier target labels and will need matching title metadata when that work resumes; target IDs and request order are unchanged.
 
 The original code remains in `docs/ORIGINAL_INIT.lua.txt` for comparison. Do not load it alongside the revised loader. Existing `orlando_logs/`, current `records/`, unrelated files, recordings, and Git history are preserved by the scoped local install. No Git staging, commit or remote push is performed.
 
