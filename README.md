@@ -1,19 +1,19 @@
 # HCI2000 Hammerspoon study controller
 
 Revised controller for **Effects of Browser Tab Orientation & Tab Load on Navigation Performance**.
-Version **2.0.0**, prepared 28-29 October 2026 from the group's supplied `hammerspoon-main.zip`.
+Version **2.1.0**, updated 29 October 2026 from the group's synced `implemented-hammerspoon` branch (`ff67ebb`), retaining the earlier issue-2/3/4 repairs.
 
 ## What this folder is
 
 This is the macOS experiment controller in the `.hammerspoon` Git repository. Its repository root contains `init.lua`, `study/` and `orlando_audio/`. The Python/HTML content project is separate in `hci_exp/Tab-Sets-for-Experiment`. Hammerspoon runs this package on the study Mac; **Python is not required to run the experiment controller**. Optional Python/Lupa tools are for developer tests only.
 
-The controller masks/reveals Chrome's tab region, plays the original target recordings, manages the trial schedule, and writes auxiliary records. **Saved OBS video and manual coding remain the source of final retrieval times, first-selection accuracy and selection counts.** Polling observations are not silently promoted to final measurements.
+The controller masks/reveals Chrome's tab region, plays the group's current target recordings, manages the trial schedule, and writes auxiliary records. **Saved OBS video and manual coding remain the source of final retrieval times, first-selection accuracy and selection counts.** Polling observations are not silently promoted to final measurements.
 
 ### Verification status
 
 The code was implemented and tested locally with Lua 5.4, simulated Hammerspoon APIs and real temporary record files. Exact test counts and source fingerprints are in `docs/LOCAL_CHECKS.json`.
 
-The final local run passed **55 behavioral cases and all 10 Lua syntax checks**. `docs/MILESTONES.md` tracks implementation versus native-device verification for 2A-4B.
+The final local run passed **81 behavioral cases and all 10 Lua syntax checks** (12 model, 22 integration, 47 controller/loader). `docs/MILESTONES.md` tracks implementation versus native-device verification for 2A-4B.
 
 **The actual macOS/Chrome/OBS checks have not been run here.** Input permissions, audio decoding/playback, native tab geometry, mask coverage and captured video must pass `docs/MAC_CHECKLIST.md` on the study laptop. Main-study mode is disabled by default; test and pilot modes work without declaring those checks complete.
 
@@ -44,14 +44,14 @@ The original archive is preserved. `docs/PROVENANCE.json` identifies its hash, o
 | Neutral activation requested without confirmation | Bounded neutral-title verification; failed preparation stops before audio exposure | 3A |
 | Prompt exposure recorded only after reveal | Exposure intent checkpointed before playback; interrupted/uncertain prompts cannot silently replay | 3B |
 | Retry hotkey could replay exposed scored entries | Exposed entries get an interruption outcome and are consumed; unexposed failures retain the entry | 3B |
-| Automatic next trial after three seconds | Facilitator-paced progression, requiring viewport/setup approval for every trial | 3B |
+| Original automatic next trial had no verified reset safeguards | Restored three-second automatic continuation inside an approved all-tabs-visible block; manual overflow fallback and explicit ratings/block boundary | 3B |
 | Immediate reset could conceal the endpoint in video | Fixed 0.30-second post-outcome display hold, excluded from retrieval time; verify/refine in pilot | 2B/3B |
 | Recalibration/settings changes possible during active phases | Calibration allowed only in Setup | 3A |
 | Reload depended on runtime-local cleanup | Actual Hammerspoon shutdown hook preserves interruption/reload guards and chains unrelated callbacks | 3B/4A |
 | Unexpected callback errors could interrupt cleanup | Guarded controls/timers/audio callbacks stop and release input on an exception | 3B |
 | No demonstrated allocation validation | 16-slot permuted-block roster, balanced practice order, preparation sheet and checks | 4B |
 
-The current conditions, group/content assignments, five target identities, six-trial schedules, titles, common favicon and tab-position lists have been retained. The 20 `.m4a` files are byte-for-byte copies. History remains an extra content set outside the controller's four scored sets.
+The current conditions, group/content assignments, five target identities, six-trial schedules, common favicon and task-tab position lists are retained. The synced group changes to 24 page titles, nine target recordings, and Study Start at the LAST browser position are preserved. Exact legacy target-title aliases support the earlier HTML titles; they do not use fuzzy matching. All 20 delivered recordings match the synced baseline, including its nine replacements. History remains an extra content set outside the four scored sets.
 
 ### Start-cue dependency outside this repair
 
@@ -79,26 +79,45 @@ The repository's `init.lua` is already the loader. **Do not replace it with a li
 
 Use one dedicated Chrome study window/profile, the fixed external mouse and the intended display settings. Use direct HTML files or the documented plain static server for scored sessions rather than Live Server's injected reloading code.
 
-### This repository update
+### Synced changes preserved before this update
 
-The tested version was copied from `hci_exp/Hammerspoon-Study-Controller` on 29 October 2026. Lua modules, tests, supporting documents and recordings match that package. This README is adapted for the repository's direct `~/.hammerspoon` layout, and the ignore file also excludes legacy generated logs from future additions.
+This release starts from the group's synced commit `ff67ebb`, not the obsolete first distribution. Its neutral-last reset (`focusTab(6/16)`, fallback `Cmd+9`), two focus regressions, revised canonical titles, and nine replacement recordings are retained. Current audio hashes and a combined materials-definition fingerprint are recorded in `docs/PROVENANCE.json`; original ZIP/audio fingerprints remain historical provenance. Audio wording and native playback were not verified here.
 
-The Git metadata and existing `orlando_logs/` files were preserved. Those legacy logs are not used by the revised controller, which writes new run-specific records under `records/`. The unchanged original code is available as `docs/ORIGINAL_INIT.lua.txt`; do not load it alongside the revised loader. This is a local working-copy update, without a commit or remote push.
+The existing local HTML launcher still opens Study Start first. **Move Study Start to LAST before approving the block**: browser tab 6 at low load, 16 at high load. Task-page browser indices now equal task positions; do not add one. This preserves the synced Lua contract. The earlier paper's neutral-first wording/table note and launcher instructions must be synchronized separately before main collection; this update does not edit those projects.
+
+The local HTML pages also retain the earlier titles for nine scored targets. `docs/TITLE_COMPATIBILITY.json` lists the exact accepted canonical/legacy labels and all 24 page-title differences. Use one consistent title version across main participants and verify prompt/target identity; compatibility detection does not establish equal stimulus difficulty.
+
+The original code remains in `docs/ORIGINAL_INIT.lua.txt` for comparison. Do not load it alongside the revised loader. Existing `orlando_logs/`, current `records/`, unrelated files, recordings, and Git history are preserved by the scoped local install. No Git staging, commit or remote push is performed.
+
+### Automatic progression settings
+
+`study/config.lua` defaults to:
+
+```lua
+autoAdvance = true,
+interTrialDelaySeconds = 3.0,
+autoAdvanceAfterTimeout = true,
+```
+
+These are researcher settings, not participant controls. A completed automatic/manual acknowledgment or ordinary timeout starts a three-second masked countdown after the 0.30-second outcome hold. The next trial then resets and verifies Study Start, the pointer, and the bound window before playing its scheduled prompt. The first prompt of each block remains an explicit start.
+
+Automatic mode requires the researcher to confirm once at block preparation that **all task tabs AND Study Start are visible without tab-list scrolling, collapsed sections, or hidden tabs**. The controller checks window/frame, neutral title, mask geometry, and pointer; it does not prove tab order, exact count, panel width, visibility, or OBS status automatically. If scrolling is needed, choose **Manual trials** and reset the viewport before each trial. No unvalidated scrolling automation is claimed. Do not change geometry or reduce tab size merely to obtain automatic mode outside the frozen study settings.
+
+Set `autoAdvance=false` to retain per-trial manual setup. Set `autoAdvanceAfterTimeout=false` to wait for manual preparation after a timeout. Pause, emergency, Setup, interrupted/invalid trials, loss of the study window/focus/frame, and storage/audio failures cancel continuation and require review/setup. Neither mode automatically enters a new condition, resumes a crashed run, or replays an exposed prompt.
 
 ## Session workflow
 
 Keep preparation and researcher answer sheets out of the participant's view. Perform calibrations and manual setup only outside a timed trial.
 
-1. **New session:** press `Ctrl+Alt+Cmd+B`. Choose test, pilot or main, then enter a coded participant ID. Test/pilot sessions explicitly request group 1-4. Main IDs P001-P016 look up the frozen roster automatically; they do not choose a fresh random group.
-2. Review the displayed participant, group and four blocks. Main allocation/practice order is in `docs/allocation.csv`. This is a generated 16-slot recruitment template; freeze/review it before use and do not reshuffle midway through collection.
-3. Prepare the first assigned content set, load and orientation using the HTML launcher. Close setup/unrelated tabs, verify actual order and keep Study Start first. See `docs/PREPARATION.md`.
-4. **Setup mode:** `Ctrl+Alt+Cmd+S` releases input and exposes the window for researcher preparation. Save the intended Chrome window/frame with **W**. Calibrate the common pointer with **C**. Calibrate horizontal mask with **H**, then vertical mask with **V**: hover top-left and press once, hover bottom-right and press again. Use the same window frame. After changing browser size or display, recalibrate.
-5. **Before every trial:** restore the tab-list scroll position and check orientation, order, panel width, native aids and OBS. Press **A** to confirm the researcher checks. The tab mask appears and input locks.
-6. Press **Return** with the same modifiers to run the scheduled prompt. The controller verifies neutral title/frame/pointer, plays audio and reveals/unlocks after the fixed delay. It uses the known neutral baseline; it does not reset its baseline to an already selected target.
-7. On detecting the target, the controller writes an auxiliary outcome and briefly retains the display for recording. Press **.** if manual acknowledgment is needed. The final endpoint still comes from video. Ordinary wrong selections do not end the trial.
-8. After the outcome, press **S**, manually restore the viewport/check setup, then **A** and **Return** for the next entry. There is no unattended next-trial countdown.
-9. After six scheduled entries, collect the condition workload ratings. Press **N** to acknowledge the block transition. Prepare the next assigned block. After the fourth block, **N** closes the session after its ratings. Complete weighting/interview as specified by the paper.
-10. Retain the original records/video. Fill a separately saved copy of `video_coding.csv` from the recording. Compare auxiliary records, explain disagreements and keep the original auxiliary files unchanged.
+1. **New session:** press `Ctrl+Alt+Cmd+B`, choose test/pilot/main, and enter the coded participant. Main IDs use the frozen roster; test/pilot requests the assigned group.
+2. Review participant, group, practice order and four blocks. Prepare the assigned topic/load/orientation with the HTML launcher, close unrelated tabs, and move **Study Start to LAST**. Follow `docs/PREPARATION.md`.
+3. Enter **Setup** (`Ctrl+Alt+Cmd+S`). Save the study window/frame with **W**, common pointer with **C**, and H/V mask corners with **H**/**V** as needed. Keep preparation outside the participant's view. Recalibrate after display/window changes.
+4. Press **A** with the same modifiers. Confirm actual tab count/order, orientation, panel width, aids, starting viewport and OBS. Then choose **All tabs visible** for automatic block flow, or **Manual trials** if scrolling/reset checks are needed. This choice records the scope of the approval accurately.
+5. Press **Return** with the modifiers to start the first trial. The controller selects the last neutral tab and verifies its title, frame and pointer before playing the prompt. Tabs stay masked/input locked until audio completion and the configured reveal delay.
+6. When the participant selects the correct target, completion is recorded automatically. The correct page remains visible for 0.30 seconds for OBS, then the mask returns and the next prompt begins after a three-second countdown. **Do not press S/A/Return between ordinary automatic trials.** Wrong selections do not end a trial. **.** remains a manual completion acknowledgment if detection is unavailable; video supplies the final endpoint.
+7. **P** pauses/cancels the next prompt and **Esc** provides emergency release (both with modifiers). A break during an exposed trial documents/consumes it without replay. Resume through **S → A → Return**, approving the current setup again. In manual/scrolling mode, use this sequence between trials to restore the tab-list viewport.
+8. After six scheduled entries, the controller stops for that condition's TLX ratings. Press **N** after the ratings to prepare the next block; approve and start it explicitly. After the final block, **N** closes the session. Complete the weighting/interview under the study protocol.
+9. Retain original logs and OBS files. Code final measures in a separate copy of `video_coding.csv`; compare and document discrepancies with auxiliary records. No automatic estimate becomes a final measurement without video review.
 
 All letter/key shortcuts below use **Ctrl+Alt+Cmd** together. On macOS, Alt is Option.
 
@@ -106,8 +125,8 @@ All letter/key shortcuts below use **Ctrl+Alt+Cmd** together. On macOS, Alt is O
 |---|---|
 | B | New checked session |
 | S | Enter researcher Setup / resume through setup |
-| A | Confirm manual setup checks for the pending trial |
-| Return | Start the approved pending trial |
+| A | Approve setup and choose all-visible automatic flow or manual trials |
+| Return | Start the first approved trial; cannot bypass an active countdown |
 | . | Correct target observed manually; exact measures require video |
 | P | Pause/break; an exposed entry is documented and consumed |
 | I | Invalidate/interruption; no automatic exposed-prompt replay |
@@ -145,7 +164,7 @@ During input lock, use keyboard shortcuts: mouse clicks, including the HCI menu,
   study/storage.lua            Record files, checks and restart guards
   study/materials.lua          Existing targets/orders/positions, generated once
   study/allocation.lua         Frozen 16-slot main allocation
-  orlando_audio/               20 unchanged original recordings
+  orlando_audio/               20 current synced recordings (9 replaced by group)
   records/                     New local test/pilot/main records
   DATA_DICTIONARY.md            CSV meanings and missing-value rules
   docs/PREPARATION.md           Target positions and tab-order reference
@@ -157,7 +176,7 @@ During input lock, use keyboard shortcuts: mouse clicks, including the HCI menu,
   tests/ and tools/            Optional developer tests
 ```
 
-Each new run lives under `records/<mode>/<participant>/<session_id>/` with `session.json`, `checkpoint.json`, `events.csv`, `trials_aux.csv` and `video_coding.csv`. The checkpoint also records the approved frame, saved pointer and both mask calibrations. Expected audio fingerprints identify the delivered recordings; these are provenance, not a claim that playback/wording was validated on the Mac. Do not put participant names or consent forms here. See `DATA_DICTIONARY.md` for exact columns.
+Each new run lives under `records/<mode>/<participant>/<session_id>/` with `session.json`, `checkpoint.json`, `events.csv`, `trials_aux.csv` and `video_coding.csv`. The checkpoint also records the approved frame, saved pointer, both mask calibrations, automatic block approval, and pending automatic trial identity. Checkpoints are audit snapshots, not automatic-resume authorization. Expected current-audio fingerprints and the materials-definition fingerprint identify this delivery; the source-manifest hash remains historical input provenance, and these are provenance, not a claim that playback/wording was validated on the Mac. Do not put participant names or consent forms here. See `DATA_DICTIONARY.md` for exact columns.
 
 `reveal_command_monotonic_s` records a software request, not a visible frame. `auto_detection_elapsed_s` includes polling delay. `manual_ack_elapsed_s` includes facilitator reaction time. Final retrieval time uses the agreed recorded start and first correct target-active frame. Completed verified trials satisfy `total_tab_switches = incorrect_selections + 1`.
 

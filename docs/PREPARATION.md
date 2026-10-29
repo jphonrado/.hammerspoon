@@ -1,9 +1,9 @@
 # Researcher block preparation sheet
 
-Task positions exclude Study Start. Add one for browser indices.
+Task positions exclude Study Start. Study Start is LAST (browser index 6 low / 16 high), so each task position equals its browser index. Do not add one.
 Close the launcher and unrelated tabs. Hide preparation from participants.
-Before EACH trial: restore tab-list scrolling, neutral page and approved geometry.
-The controller checks neutral title/frame/pointer; actual tab count, orientation, order and scroll remain manual.
+Before approving each block: verify tab count/order, orientation/panel width, OBS and the approved starting viewport. The current HTML launcher opens Study Start first; move it to LAST before approval.
+Choose automatic flow only when all task tabs and Study Start fit without scrolling. It resets/verifies the neutral page, pointer and frame for every trial. If scrolling is needed, choose Manual trials and restore the viewport before EACH trial. Actual visibility, native tab count/order and OBS status are researcher checks.
 
 ## A - Sports
 

@@ -20,7 +20,8 @@ end
 function M.new(hs,root)
   local self={hs=hs,root=root,cfg=Config,timers={},hotkeys={},generation=0,
     model=nil,store=nil,meta=nil,mask=nil,mouseTap=nil,windowID=nil,
-    approvedFrame=nil,setupApproved=false,calibrationCorner={},fatal=false}
+    approvedFrame=nil,setupApproved=false,calibrationCorner={},fatal=false,
+    autoBlockApproval=nil,autoNextPending=nil}
   return setmetatable(self,{__index=M})
 end
 function M:now() return self.hs.timer.absoluteTime()/1e9 end
@@ -36,6 +37,7 @@ function M:guard(fn,...)
   pcall(function()self:unlock()end)
   pcall(function()self:hideMask()end)
   self.setupApproved=false
+  self.autoBlockApproval=nil;self.autoNextPending=nil
   if self.store and self.model and self.model.phase~="SESSION_COMPLETE" then
     pcall(function()self.store:checkpoint(self.model:snapshot())end)
     pcall(function()self.store:markInterrupted("Controller exception: "..tostring(result))end)
@@ -75,6 +77,8 @@ function M:checkpoint()
     H=self.hs.settings.get(self.cfg.settingsPrefix.."mask_H"),
     V=self.hs.settings.get(self.cfg.settingsPrefix.."mask_V"),
   }
+  s.auto_block_approval=self.autoBlockApproval
+  s.auto_next_pending=self.autoNextPending
   local ok,err=self.store:checkpoint(s)
   if not ok then self:storageFailure(err) end
   return ok
@@ -84,12 +88,14 @@ function M:storageFailure(err)
   self.fatal=true
   self:cancelTimers(); self:stopSound(); self:unlock(); self:hideMask()
   self.setupApproved=false
+  self.autoBlockApproval=nil;self.autoNextPending=nil
   self:notice("STOP: recording file error. Do not restart or replay. "..tostring(err))
 end
 function M:cancelTimers()
   self.generation=self.generation+1
   for _,t in pairs(self.timers) do t:stop() end
   self.timers={}
+  self.autoNextPending=nil
 end
 function M:after(key,delay,fn)
   if self.timers[key] then self.timers[key]:stop() end
@@ -262,7 +268,8 @@ function M:newSession()
   local meta={schema_version="2.0",mode=mode,participant=participant,group=group,session_id=run,
     plan=plan,practice_first=entry and entry.practiceFirst or "not-main-allocation",
     versions={controller=self.cfg.version,materials=Materials.version,manifest_sha256=Materials.manifestSha256,
-      original_zip_sha256=Materials.sourceZipSha256,expected_audio_sha256=Materials.audioSha256},
+      original_zip_sha256=Materials.sourceZipSha256,expected_audio_sha256=Materials.audioSha256,
+      materials_definition_sha256=Materials.definitionSha256},
     settings=copy(self.cfg),start_cue="mask_disappearance",recording_status="REQUIRES_MAC_AND_VIDEO_VERIFICATION"}
   local store,err=Storage.create(self.root.."/records",meta,self.hs)
   if not store then return self:notice("Session not created: "..tostring(err)) end
@@ -270,6 +277,7 @@ function M:newSession()
   self.store=store;self.meta=meta;self.model=Model.new(plan);self.fatal=false
   self.windowID=nil;self.approvedFrame=self.hs.settings.get(self.cfg.settingsPrefix.."frame")
   self.setupApproved=false
+  self.autoBlockApproval=nil;self.autoNextPending=nil
   if not self:event("SESSION_CREATED",{detail="Awaiting researcher setup; final measurements are video-coded"}) then return end
   if not self:checkpoint() then return end
   self:notice("Session created. Prepare block, save study window, then approve setup (Ctrl+Alt+Cmd+A).")
@@ -286,6 +294,7 @@ function M:setup()
   self:cancelTimers();self:stopSound();self:unlock();self:hideMask()
   if self.model.phase~="SETUP" then self.model:resetPreflight() end
   self.setupApproved=false
+  self.autoBlockApproval=nil
   if not self:event("RESEARCHER_SETUP",{detail="Participant must not watch preparation; restore viewport/order manually"}) then return end
   if not self:checkpoint() then return end
   self:notice("Setup: restore scroll/order/orientation, keep preparation out of participant view, then approve")
@@ -298,9 +307,19 @@ function M:approveSetup()
   if not self.hs.settings.get(self.cfg.settingsPrefix.."pointer") then return self:notice("Calibrate the pointer first") end
   if not self:maskSpec() then return self:notice("Calibrate this orientation's mask first") end
   local b=self.model:currentBlock()
-  local message=string.format("%s / %s (%s)\nExactly %d total tabs; Study Start LAST (rightmost/bottom).\nVerify actual order, orientation, fixed panel width, scroll reset, hover aids OFF.\nOBS must record the mask, pointer and audio. Preparation must be hidden from the participant.\nConfirm these checks for this trial.",b.name,b.contentSet,b.topic,b.expectedTabCount)
+  local message=string.format("%s / %s (%s)\nExactly %d total tabs; Study Start LAST (rightmost/bottom).\nVerify actual order, orientation, fixed panel width, scroll reset, hover aids OFF.\nOBS must record the mask, pointer and audio. Preparation must be hidden from the participant.\nConfirm these checks before starting this block or resuming trials.",b.name,b.contentSet,b.topic,b.expectedTabCount)
   local answer=self.hs.dialog.blockAlert("Researcher preflight",message,"Checks complete","Cancel")
   if answer~="Checks complete" then return end
+  self.autoBlockApproval=nil
+  if self.cfg.autoAdvance then
+    local fit=self.hs.dialog.blockAlert("Automatic block flow",
+      "Are ALL task tabs and Study Start fully visible in the approved tab list, with no scrolling or collapsed/hidden section needed?\n\nAll tabs visible: approve automatic progression within this block.\nManual trials: retain per-trial setup so the tab-list viewport can be reset.\n\nThe controller does not automatically verify tab order, panel width, or OBS recording. Pause immediately if the setup changes.",
+      "All tabs visible","Manual trials")
+    if fit=="All tabs visible" then
+      self.autoBlockApproval={block_index=self.model.blockIndex,window_id=self.windowID,
+        frame=copy(self.approvedFrame),mode="all_tabs_visible",expected_tab_count=b.expectedTabCount}
+    end
+  end
   local ok,why=self.model:ready();if not ok then return self:notice(why) end
   self.setupApproved=true
   win:focus()
@@ -308,12 +327,69 @@ function M:approveSetup()
   if not masked then self.model:resetPreflight();self.setupApproved=false;return self:notice(maskErr) end
   local locked,lockErr=self:lock()
   if not locked then self:emergency(lockErr);return end
-  if not self:event("PREFLIGHT_APPROVED",{detail="Orientation/order/scroll/recording manually confirmed"}) then return end
+  local detail="Orientation/order/scroll/recording manually confirmed; "
+    ..(self.autoBlockApproval and "all-tabs-visible automatic block approved" or "manual per-trial progression")
+  if not self:event("PREFLIGHT_APPROVED",{detail=detail}) then return end
   if not self:checkpoint() then return end
-  self:notice("Ready. Press Ctrl+Alt+Cmd+Return to start this trial")
+  self:notice(self.autoBlockApproval and "Ready. Start the first trial with Ctrl+Alt+Cmd+Return; this block then continues automatically."
+    or "Ready. Press Ctrl+Alt+Cmd+Return to start this trial")
 end
-function M:startTrial()
+function M:automaticBlockValid()
+  if not self.cfg.autoAdvance then return nil,"Automatic progression is disabled" end
+  local a=self.autoBlockApproval
+  local b=self.model and self.model:currentBlock()
+  if not a or not b or a.block_index~=self.model.blockIndex or a.window_id~=self.windowID
+    or a.mode~="all_tabs_visible" or a.expected_tab_count~=b.expectedTabCount
+    or not sameFrame(a.frame,self.approvedFrame,self.cfg.windowTolerancePixels) then
+    return nil,"Automatic block approval is absent or expired; enter Setup"
+  end
+  return self:validWindow(true)
+end
+function M:scheduleNextTrial(status)
+  if not self.cfg.autoAdvance or not self.autoBlockApproval then return false end
+  if status~="completed_auto" and status~="completed_manual" and status~="timeout" then return false end
+  if status=="timeout" and not self.cfg.autoAdvanceAfterTimeout then return false end
+  if not self.model or self.model.phase~="READY" or not self.model:currentTrial() or self.fatal then return false end
+  local win,err=self:automaticBlockValid()
+  if not win then self:emergency(err);return true end
+  local delay=self.cfg.interTrialDelaySeconds
+  if type(delay)~="number" or delay<0 or delay~=delay or delay==math.huge then
+    self:emergency("Invalid inter-trial delay in config.lua");return true
+  end
+  self.autoNextPending={block_index=self.model.blockIndex,scheduled_key=self.model:scheduledKey(),
+    after_status=status,delay_seconds=delay}
+  if not self:event("AUTO_NEXT_TRIAL_SCHEDULED",{detail="delay="..tostring(delay)
+    .."; all-tabs-visible block approval retained; native checks are not repeated automatically"}) then return true end
+  if not self:checkpoint() then return true end
+  -- A changed window/focus cancels the countdown, rather than exposing a prompt.
+  self.timers.autoWatch=self.hs.timer.doEvery(self.cfg.pollIntervalSeconds,function()
+    self:guard(function()
+      if not self.autoNextPending or self.fatal then return end
+      local current,reason=self:automaticBlockValid()
+      if not current then self:emergency(reason) end
+    end)
+  end)
+  self:after("autoNext",delay,function()self:startTrial(true)end)
+  self:notice(string.format("Next trial in %.1f seconds. Ctrl+Alt+Cmd+P pauses; S opens Setup.",delay))
+  return true
+end
+function M:startTrial(automatic)
   if not self.model or self.fatal then return self:notice("No usable session") end
+  if self.autoNextPending and automatic~=true then
+    return self:notice("Automatic countdown is running. Use Pause or Setup to stop it.")
+  end
+  if automatic==true then
+    if self.model.phase~="READY" then return self:emergency("Automatic countdown no longer has a ready trial") end
+    local pending=self.autoNextPending
+    if not pending or pending.block_index~=self.model.blockIndex
+      or pending.scheduled_key~=self.model:scheduledKey() then
+      return self:emergency("Automatic trial identity changed; enter Setup")
+    end
+    local autoWindow,autoError=self:automaticBlockValid()
+    if not autoWindow then return self:emergency(autoError) end
+    self.setupApproved=true -- Retained block approval, not a new manual preflight.
+    if not self:event("AUTO_TRIAL_START_REQUESTED",{detail="Using retained all-tabs-visible block approval; neutral/pointer/frame checks follow"}) then return end
+  end
   if self.model.phase~="READY" or not self.setupApproved then return self:notice("Enter Setup and approve this trial first") end
   local win,err=self:validWindow(true)
   if not win then return self:emergency(err) end
@@ -342,7 +418,10 @@ function M:startTrial()
       if math.abs(actual.x-p.x)>2 or math.abs(actual.y-p.y)>2 then return self:emergency("Pointer reset failed") end
       self.lastTitle=self.cfg.neutralTitle
       self.aux={selections=0,incorrect=0,first=nil,pages={}}
-      if not self:event("START_STATE_VERIFIED",{detail="Neutral title/frame/pointer checked; native order/scroll manually checked"}) then return end
+      local detail="Neutral title/frame/pointer checked; "..(automatic==true
+        and "native layout relies on retained all-tabs-visible block approval"
+        or "native layout manually approved before this start")
+      if not self:event("START_STATE_VERIFIED",{detail=detail}) then return end
       return self:playPrompt()
     end
     if self:now()>=deadline then return self:emergency("Study Start could not be verified") end
@@ -407,8 +486,15 @@ function M:poll()
   local title=normalizedTitle(win:title())
   if title==self.lastTitle then return end
   self.lastTitle=title
-  local target=self.model:currentTrial().targetTitle
-  local correct=title==target
+  local trial=self.model:currentTrial()
+  local correct=title==trial.targetTitle
+  -- Exact, manifest-defined compatibility titles only; never fuzzy/substring
+  -- matching, which could incorrectly complete a different page's trial.
+  if not correct then
+    for _,alias in ipairs(trial.targetTitleAliases or {}) do
+      if title==normalizedTitle(alias) then correct=true;break end
+    end
+  end
   self.aux.selections=self.aux.selections+1
   if self.aux.first==nil then self.aux.first=correct and 1 or 0 end
   if not correct then self.aux.incorrect=self.aux.incorrect+1;self.aux.pages[#self.aux.pages+1]=title end
@@ -454,10 +540,11 @@ function M:finish(status)
     local masked,why=self:showMask()
     if not masked then return self:emergency(why) end
     self.model:settleOutcome();self.setupApproved=false;self.revealTime=nil
+    if self.model.phase=="BLOCK_COMPLETE" then self.autoBlockApproval=nil end
     if not self:checkpoint() then return end
     if self.model.phase=="BLOCK_COMPLETE" then
       self:notice("Block finished. Collect workload ratings, then use Next block.")
-    else
+    elseif not self:scheduleNextTrial(status) then
       self:notice("Trial finished. Enter Setup to reset viewport and approve the next trial.")
     end
   end)
@@ -465,6 +552,7 @@ end
 function M:emergency(reason)
   self:cancelTimers();self:stopSound();self:unlock();self:hideMask()
   self.setupApproved=false
+  self.autoBlockApproval=nil;self.autoNextPending=nil
   if self.model and self.model.phase=="SESSION_COMPLETE" then
     return self:notice("Session is already complete; no active trial to interrupt")
   end
@@ -489,6 +577,7 @@ end
 function M:nextBlock()
   if not self.model or self.fatal or self.model.phase~="BLOCK_COMPLETE" then return self:notice("Finish the current block first") end
   self:cancelTimers();self:unlock();self:hideMask()
+  self.autoBlockApproval=nil;self.setupApproved=false
   local answer=self.hs.dialog.blockAlert("Block transition","Have the workload ratings been completed? Prepare the next block with the participant not watching.","Continue","Cancel")
   if answer~="Continue" then return end
   self.model:nextBlock();self.setupApproved=false
@@ -520,8 +609,10 @@ end
 function M:status()
   if not self.model then return self:notice("No session. New session: Ctrl+Alt+Cmd+B") end
   local b=self.model:currentBlock()
-  self:notice(string.format("%s | group %d | block %d | trial %d | %s | %s",self.meta.participant,
-    self.meta.group,self.model.blockIndex,self.model.trialIndex,self.model.phase,b and b.name or "finished"))
+  local progression=self.autoNextPending and "automatic countdown"
+    or (self.autoBlockApproval and "automatic block approved" or "manual/setup")
+  self:notice(string.format("%s | group %d | block %d | trial %d | %s | %s | %s",self.meta.participant,
+    self.meta.group,self.model.blockIndex,self.model.trialIndex,self.model.phase,b and b.name or "finished",progression))
 end
 function M:install()
   local bindings={

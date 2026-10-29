@@ -28,16 +28,26 @@ Recording filenames/session IDs: __________
 ## 3A - Native setup and input
 
 - [ ] One dedicated Chrome study window is bound and its approved frame remains fixed.
-- [ ] Study Start is first and becomes active before prompt playback.
+- [ ] Study Start is LAST (6/16) and becomes active before prompt playback.
 - [ ] Common pointer coordinate lies in the content area for both orientations.
 - [ ] H/V masks cover all relevant native tab labels, with the same approved frame/display.
 - [ ] Clicking/dragging/scrolling under the mask cannot change participant state unnoticed.
 - [ ] Native tab order, orientation, panel width and exact 6/16 total tabs are correct.
-- [ ] Tab-list scroll position is reset manually before every trial.
+- [ ] Automatic mode is enabled only after confirming every task tab AND Study Start fit without scrolling; verify this separately in all four configurations.
+- [ ] If scrolling is required, Manual trials is selected and the tab-list viewport is reset before each trial. No automatic scroll reset is assumed.
 - [ ] Prohibited hover aids/search/grouping/pinning/shortcuts are disabled or prevented by procedure.
 - [ ] Moved/resized/lost window, failed neutral activation and failed input permission stop preparation/trial.
 
-## 3B - Failures and pacing
+## 3B - Automatic progression, failures and pacing
+
+- [ ] One explicit initial start runs all six normal trials within a block without repeated S/A/Return.
+- [ ] Outcome hold, three-second masked countdown, neutral-LAST reset, pointer reset and full next prompt are visible in the saved recording.
+- [ ] Ordinary timeout advances as configured without inventing a completed time; timeout-auto-off waits instead.
+- [ ] P/Esc/Setup cancels a pending countdown; resuming does not replay the finished target.
+- [ ] Window/focus/frame/mask, audio and storage failure cannot expose the next prompt silently.
+- [ ] No automatic transition crosses the TLX/condition boundary.
+- [ ] Current canonical and permitted legacy target titles are recognized exactly; unrelated titles are rejected.
+- [ ] Confirm one consistent actual title/audio version is used for all main sessions; reconcile neutral-LAST with launcher and paper setup instructions.
 
 - [ ] Pause before exposure retains the entry; pause during/after prompt consumes and documents it.
 - [ ] Missing/unreadable audio before exposure stops; interrupted/uncertain playback is not replayed as a scored replacement.

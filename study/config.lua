@@ -1,6 +1,6 @@
 -- Researcher settings. No Python or browser extension is required.
 return {
-  version = "2.0.0",
+  version = "2.1.0",
   chromeAppName = "Google Chrome",
   neutralTitle = "Study Start",
   postPromptDelaySeconds = 0.40,
@@ -10,6 +10,9 @@ return {
   windowTolerancePixels = 3,
   outcomeHoldSeconds = 0.30, -- Provisional: verify the correct page is visible in OBS.
   autoDetectTarget = true, -- Auxiliary title polling; final measures come from video.
+  autoAdvance = true, -- Approved all-tabs-visible blocks continue automatically.
+  interTrialDelaySeconds = 3.0, -- Masked pause before the next scheduled prompt.
+  autoAdvanceAfterTimeout = true, -- Ordinary timeouts continue; interruptions never do.
   lockWatchdogSeconds = 120, -- A release stops/interrupts; it never silently continues.
   mainStudyEnabled = false, -- Enable only after completing docs/MAC_CHECKLIST.md.
   maskColor = {red=0.52,green=0.52,blue=0.52,alpha=1},

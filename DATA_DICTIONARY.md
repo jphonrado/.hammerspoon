@@ -81,3 +81,9 @@ existing destination through rename, the prior JSON is retained under a unique
 `.previous-*` name before replacement. A failed replacement attempts to restore
 the prior file; old data are not silently deleted. These files are administrative
 snapshots, not additional participant observations.
+
+## Automatic progression and synced materials (controller 2.1.0)
+
+`AUTO_NEXT_TRIAL_SCHEDULED` and `AUTO_TRIAL_START_REQUESTED` are auxiliary events. A block-level all-tabs-visible approval is not a new manual preflight for each trial. `checkpoint.json` records `auto_block_approval` and `auto_next_pending`; these do not authorize automatic resume after a crash/reload. Configured continuation includes ordinary timeouts, which still have no completed retrieval time.
+
+Session provenance includes the current delivered recording hashes and a materials-definition fingerprint. The earlier source-manifest hash identifies its historical input, not a claim that all synced title edits match the old HTML. Trial identity retains the canonical target title; `observed_title` preserves the actual label detected. Only explicitly listed legacy aliases for that same target are accepted. Use a consistent title version during the main study. Study Start is LAST under the synced controller contract.

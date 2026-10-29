@@ -60,7 +60,14 @@ local function fixture(group)
         error("Fake timer loop did not settle")
     end
     hs.alert.show = function(message) env.notices[#env.notices + 1] = message end
-    hs.dialog.blockAlert = function(_,_,first) return first end
+    hs.dialog.blockAlert = function(title,message,first)
+        env.dialogs = env.dialogs or {}
+        env.dialogs[#env.dialogs + 1] = {title = title,message = message,first = first}
+        if env.dialogAnswers and #env.dialogAnswers > 0 then
+            return table.remove(env.dialogAnswers,1)
+        end
+        return first
+    end
     hs.mouse.absolutePosition = function(value)
         if value then env.position = {x = value.x,y = value.y} end
         return {x = env.position.x,y = env.position.y}
@@ -92,6 +99,7 @@ local function fixture(group)
     function win:focus() env.front = true end
     function win:focusTab(index)
         env.focusTabArg = index
+        env.focusTabCalls = (env.focusTabCalls or 0) + 1
         if not env.neutralFails then env.title = "Study Start"; return true end
         return false
     end
@@ -145,6 +153,9 @@ local function fixture(group)
         self.interruptedCalls = self.interruptedCalls + 1;self.closed = true;return true
     end
     local c = Controller.new(hs,"/dummy-controller")
+    -- Existing manual-mode regression checks remain independent of the new
+    -- default. Automation cases below opt in explicitly on their own instance.
+    c.cfg = setmetatable({autoAdvance = false},{__index = Config})
     local plan = Materials.buildPlan(group or 1)
     c.model = Model.new(plan)
     c.meta = {participant = "TEST001",group = group or 1,plan = plan}
@@ -368,6 +379,394 @@ test("adapter rejects stale mask dimensions in either orientation",function()
         eq(e.lockEnabled,false)
         eq(e.playCalls,0)
     end
+end)
+
+local function automaticFixture(group)
+    local c,e,s = fixture(group)
+    c.cfg.autoAdvance = true
+    c.cfg.autoAdvanceAfterTimeout = true
+    return c,e,s
+end
+
+local function observedCorrect(c,e)
+    e.title = c.model:currentTrial().targetTitle
+    c:poll()
+    eq(c.model.phase,"OUTCOME")
+end
+
+local function settleAutomatic(c,e)
+    e.advance(c.cfg.outcomeHoldSeconds)
+    eq(c.model.phase,"READY")
+    assert(c.autoNextPending,"A within-block automatic continuation must be pending")
+    eq(e.lockEnabled,true)
+    assert(c.mask and c.mask.visible,"Countdown must keep the tabs masked")
+end
+
+test("automatic block approval does not start the first prompt without Return",function()
+    local c,e = automaticFixture()
+    c:approveSetup()
+    eq(c.model.phase,"READY")
+    assert(c.autoBlockApproval)
+    e.advance(c.cfg.interTrialDelaySeconds + 0.1)
+    eq(e.playCalls,0)
+    eq(c.autoNextPending,nil)
+end)
+
+test("automatic completion countdown resets neutral and pointer before the next prompt",function()
+    local c,e,s = automaticFixture()
+    running(c,e)
+    e.position = {x = 120,y = 100}
+    observedCorrect(c,e)
+    eq(#s.trials,1)
+    eq(c.mask,nil,"Recording hold must retain the selected target")
+    settleAutomatic(c,e)
+    eq(c.model.trialIndex,2)
+    local key = c.autoNextPending.scheduled_key
+    assert(key)
+    c:finish("completed_manual")
+    eq(#s.trials,1,"Repeated completion cannot duplicate the recorded outcome")
+    c:startTrial()
+    eq(e.playCalls,1,"Return cannot bypass the fixed automatic countdown")
+    e.advance(c.cfg.interTrialDelaySeconds - 0.01)
+    eq(e.playCalls,1)
+    e.advance(0.02)
+    eq(c.model.phase,"PROMPT")
+    eq(e.playCalls,2)
+    eq(e.focusTabArg,6,"The groupmate's LAST-neutral convention is preserved")
+    eq(e.title,"Study Start")
+    eq(e.position.x,500)
+    eq(e.position.y,400)
+    eq(c.autoNextPending,nil)
+    eq(e.lockEnabled,true)
+    local approvals = 0
+    for _,event in ipairs(s.events) do
+        if event.name == "PREFLIGHT_APPROVED" then approvals = approvals + 1 end
+    end
+    eq(approvals,1,"Automatic continuation must not fabricate fresh manual approvals")
+end)
+
+test("automatic flow completes all four groups with one approval per block and stops for TLX",function()
+    for group = 1,4 do
+        local c,e,s = automaticFixture(group)
+        for blockIndex = 1,4 do
+            running(c,e)
+            for trialIndex = 1,6 do
+                if trialIndex > 1 then
+                    eq(c.model.phase,"PROMPT")
+                    e.sound.callback(true)
+                    e.advance(c.cfg.postPromptDelaySeconds)
+                    eq(c.model.phase,"RUNNING")
+                end
+                local expected = c.meta.plan[blockIndex].trials[trialIndex]
+                observedCorrect(c,e)
+                local record = s.trials[#s.trials]
+                eq(record.block,blockIndex)
+                eq(record.trial,expected.id)
+                eq(record.target_id,expected.targetID)
+                eq(record.target_title,expected.targetTitle)
+                eq(record.content_set,c.meta.plan[blockIndex].contentSet)
+                e.advance(c.cfg.outcomeHoldSeconds)
+                if trialIndex < 6 then
+                    assert(c.autoNextPending)
+                    e.advance(c.cfg.interTrialDelaySeconds)
+                end
+            end
+            eq(c.model.phase,"BLOCK_COMPLETE")
+            eq(c.autoNextPending,nil)
+            local plays = e.playCalls
+            e.advance(c.cfg.interTrialDelaySeconds + 0.2)
+            eq(e.playCalls,plays,"No automatic jump across the workload-rating boundary")
+            c:nextBlock()
+            eq(c.autoBlockApproval,nil,"The next block needs its own visible-tab check")
+        end
+        eq(c.model.phase,"SESSION_COMPLETE")
+        eq(#s.trials,24)
+        eq(e.playCalls,24)
+        eq(s.closedCalls,1)
+        eq(s.afterClosedCalls,0)
+        local approvals = 0
+        for _,event in ipairs(s.events) do
+            if event.name == "PREFLIGHT_APPROVED" then approvals = approvals + 1 end
+        end
+        eq(approvals,4)
+        local seen = {}
+        for _,record in ipairs(s.trials) do
+            local identity = record.block .. ":" .. record.trial
+            assert(not seen[identity],"Duplicate automatic outcome " .. identity)
+            seen[identity] = true
+        end
+    end
+end)
+
+test("automatic target detection accepts only the explicit legacy title for the same page",function()
+    local c,e,s = automaticFixture(4) -- Animals is the first block; P2 then P3.
+    running(c,e)
+    observedCorrect(c,e);settleAutomatic(c,e)
+    e.advance(c.cfg.interTrialDelaySeconds)
+    e.sound.callback(true);e.advance(c.cfg.postPromptDelaySeconds)
+    local trial=c.model:currentTrial()
+    eq(trial.targetID,"P3")
+    assert(#trial.targetTitleAliases==1)
+    e.title=trial.targetTitle .. " unrelated page"
+    c:poll()
+    eq(c.model.phase,"RUNNING","A similar title must not finish the trial")
+    e.title=trial.targetTitleAliases[1] .. " - Google Chrome"
+    c:poll()
+    eq(c.model.phase,"OUTCOME")
+    eq(#s.trials,2)
+    eq(s.trials[2].target_title,trial.targetTitle,"Canonical group title remains the record identity")
+    eq(s.trials[2].aux_first_correct,0,"The earlier unrelated selection is retained")
+    settleAutomatic(c,e)
+    e.advance(c.cfg.interTrialDelaySeconds)
+    eq(e.playCalls,3)
+end)
+
+test("automatic scheduling event failure releases input and cannot start another trial",function()
+    local c,e,s = automaticFixture()
+    running(c,e);observedCorrect(c,e)
+    s.failEvent="AUTO_NEXT_TRIAL_SCHEDULED"
+    e.advance(c.cfg.outcomeHoldSeconds+c.cfg.interTrialDelaySeconds+0.2)
+    eq(c.fatal,true);eq(e.playCalls,1);eq(#s.trials,1)
+    eq(c.autoNextPending,nil);eq(c.autoBlockApproval,nil)
+    eq(e.lockEnabled,false);eq(c.mask,nil)
+end)
+
+test("interrupted audio in an automatic block revokes progression without replay",function()
+    local c,e,s=automaticFixture()
+    startPrompt(c,e)
+    e.sound.callback(false)
+    e.advance(c.cfg.interTrialDelaySeconds+0.2)
+    eq(c.model.phase,"PAUSED");eq(c.model.trialIndex,2)
+    eq(#s.trials,1);eq(s.trials[1].status,"interrupted")
+    eq(c.autoBlockApproval,nil);eq(c.autoNextPending,nil)
+    eq(e.playCalls,1);eq(e.lockEnabled,false)
+end)
+
+test("manual configuration keeps facilitator-paced trial starts",function()
+    local c,e,s = fixture()
+    running(c,e)
+    observedCorrect(c,e)
+    e.advance(c.cfg.outcomeHoldSeconds + Config.interTrialDelaySeconds + 0.2)
+    eq(c.model.phase,"READY")
+    eq(c.autoNextPending,nil)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+    c:startTrial()
+    eq(e.playCalls,1,"A manual-mode trial still requires explicit setup approval")
+end)
+
+test("scrolling block falls back to manual trials instead of claiming a scroll reset",function()
+    local c,e,s = automaticFixture()
+    e.dialogAnswers = {"Checks complete","Manual trials"}
+    running(c,e)
+    eq(c.autoBlockApproval,nil)
+    observedCorrect(c,e)
+    e.advance(c.cfg.outcomeHoldSeconds + c.cfg.interTrialDelaySeconds + 0.2)
+    eq(c.model.phase,"READY")
+    eq(c.autoNextPending,nil)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+end)
+
+test("pause cancels an automatic countdown without replaying the completed trial",function()
+    local c,e,s = automaticFixture()
+    running(c,e);observedCorrect(c,e);settleAutomatic(c,e)
+    c:emergency("Participant break / facilitator pause")
+    eq(c.model.phase,"PAUSED")
+    eq(c.model.trialIndex,2)
+    eq(c.autoNextPending,nil)
+    eq(c.autoBlockApproval,nil)
+    eq(e.lockEnabled,false)
+    e.advance(c.cfg.interTrialDelaySeconds + 1)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+    c:setup();running(c,e)
+    eq(c.model.trialIndex,2)
+    eq(e.playCalls,2)
+end)
+
+test("Setup cancels an automatic countdown and requires fresh approval",function()
+    local c,e,s = automaticFixture()
+    running(c,e);observedCorrect(c,e);settleAutomatic(c,e)
+    c:setup()
+    eq(c.model.phase,"SETUP")
+    eq(c.autoNextPending,nil)
+    eq(c.autoBlockApproval,nil)
+    eq(c.setupApproved,false)
+    eq(e.lockEnabled,false)
+    e.advance(c.cfg.interTrialDelaySeconds + 1)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+end)
+
+test("emergency during recording hold cannot create a later automatic prompt",function()
+    local c,e,s = automaticFixture()
+    running(c,e);observedCorrect(c,e)
+    c:emergency("Emergency during recording hold")
+    eq(c.model.phase,"PAUSED")
+    eq(c.model.trialIndex,2)
+    eq(c.autoNextPending,nil)
+    eq(c.autoBlockApproval,nil)
+    e.advance(c.cfg.outcomeHoldSeconds + c.cfg.interTrialDelaySeconds + 1)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+end)
+
+test("moved window cancels automatic continuation before another exposure",function()
+    local c,e,s = automaticFixture()
+    running(c,e);observedCorrect(c,e);settleAutomatic(c,e)
+    e.frame.x = e.frame.x + 40
+    e.advance(c.cfg.interTrialDelaySeconds + 0.2)
+    eq(c.model.phase,"PAUSED")
+    eq(c.autoNextPending,nil)
+    eq(c.autoBlockApproval,nil)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+    eq(e.lockEnabled,false)
+end)
+
+test("focus loss cancels automatic continuation without bringing Chrome back silently",function()
+    local c,e,s = automaticFixture()
+    running(c,e);observedCorrect(c,e);settleAutomatic(c,e)
+    e.front = false
+    e.advance(c.cfg.interTrialDelaySeconds + 0.2)
+    eq(c.model.phase,"PAUSED")
+    eq(c.autoNextPending,nil)
+    eq(e.front,false)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+    eq(e.lockEnabled,false)
+end)
+
+test("missing study window cancels automatic continuation",function()
+    local c,e,s = automaticFixture()
+    running(c,e);observedCorrect(c,e);settleAutomatic(c,e)
+    e.windowMissing = true
+    e.advance(c.cfg.interTrialDelaySeconds + 0.2)
+    eq(c.model.phase,"PAUSED")
+    eq(c.autoNextPending,nil)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+    eq(e.lockEnabled,false)
+end)
+
+test("stale mask calibration cannot expose an automatic next trial",function()
+    local c,e,s = automaticFixture()
+    running(c,e);observedCorrect(c,e);settleAutomatic(c,e)
+    local orientation = c.model:currentBlock().orientation
+    local spec = c.hs.settings.get(Config.settingsPrefix .. "mask_" .. orientation)
+    spec.frame_w = spec.frame_w + 50
+    e.advance(c.cfg.interTrialDelaySeconds + 0.2)
+    eq(c.model.phase,"PAUSED")
+    eq(c.autoNextPending,nil)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+    eq(e.lockEnabled,false)
+end)
+
+test("checkpoint failure during automatic preparation releases input without a new prompt",function()
+    local c,e,s = automaticFixture()
+    running(c,e);observedCorrect(c,e);settleAutomatic(c,e)
+    s.failNextCheckpoint = true
+    e.advance(c.cfg.interTrialDelaySeconds + 0.2)
+    eq(c.fatal,true)
+    eq(c.autoNextPending,nil)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+    eq(e.lockEnabled,false)
+    eq(c.mask,nil)
+end)
+
+test("automatic-start event failure cannot play another prompt",function()
+    local c,e,s = automaticFixture()
+    running(c,e);observedCorrect(c,e);settleAutomatic(c,e)
+    s.failEvent = "AUTO_TRIAL_START_REQUESTED"
+    e.advance(c.cfg.interTrialDelaySeconds + 0.2)
+    eq(c.fatal,true)
+    eq(c.autoNextPending,nil)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+    eq(e.lockEnabled,false)
+end)
+
+test("missing next audio stops before exposure and retains the pending scheduled entry",function()
+    local c,e,s = automaticFixture()
+    running(c,e);observedCorrect(c,e);settleAutomatic(c,e)
+    e.audioAvailable = false
+    e.advance(c.cfg.interTrialDelaySeconds + 0.2)
+    eq(c.model.phase,"PAUSED")
+    eq(c.model.trialIndex,2)
+    eq(c.autoNextPending,nil)
+    eq(c.autoBlockApproval,nil)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+    eq(e.lockEnabled,false)
+end)
+
+test("failed automatic neutral reset stops before the next target prompt",function()
+    local c,e,s = automaticFixture()
+    running(c,e);observedCorrect(c,e);settleAutomatic(c,e)
+    e.neutralFails = true
+    e.advance(c.cfg.interTrialDelaySeconds + c.cfg.neutralWaitSeconds + 0.2)
+    eq(c.model.phase,"PAUSED")
+    eq(c.model.trialIndex,2)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+    eq(e.lockEnabled,false)
+end)
+
+test("timeout follows the configured automatic countdown without inventing a completed time",function()
+    local c,e,s = automaticFixture()
+    running(c,e)
+    e.advance(c.cfg.timeoutSeconds)
+    eq(c.model.phase,"OUTCOME")
+    eq(s.trials[1].status,"timeout")
+    eq(s.trials[1].retrieval_time_s,nil)
+    eq(s.trials[1].aux_first_correct,nil)
+    settleAutomatic(c,e)
+    e.advance(c.cfg.interTrialDelaySeconds)
+    eq(c.model.phase,"PROMPT")
+    eq(e.playCalls,2)
+    eq(#s.trials,1)
+end)
+
+test("timeout can explicitly retain manual progression while normal completions are automatic",function()
+    local c,e,s = automaticFixture()
+    c.cfg.autoAdvanceAfterTimeout = false
+    running(c,e)
+    e.advance(c.cfg.timeoutSeconds)
+    e.advance(c.cfg.outcomeHoldSeconds + c.cfg.interTrialDelaySeconds + 0.2)
+    eq(c.model.phase,"READY")
+    eq(c.autoNextPending,nil)
+    eq(e.playCalls,1)
+    eq(#s.trials,1)
+    eq(s.trials[1].status,"timeout")
+end)
+
+test("manual target acknowledgment keeps the same automatic within-block flow",function()
+    local c,e,s = automaticFixture()
+    running(c,e)
+    c:finish("completed_manual")
+    settleAutomatic(c,e)
+    e.advance(c.cfg.interTrialDelaySeconds)
+    eq(c.model.phase,"PROMPT")
+    eq(e.playCalls,2)
+    eq(s.trials[1].status,"completed_manual")
+    eq(s.trials[1].retrieval_time_s,nil)
+end)
+
+test("an interrupted automatic trial consumes its exposed entry and never restarts itself",function()
+    local c,e,s = automaticFixture()
+    running(c,e)
+    c:emergency("Trial invalidated by facilitator")
+    eq(c.model.phase,"PAUSED")
+    eq(c.model.trialIndex,2)
+    eq(#s.trials,1)
+    eq(s.trials[1].status,"interrupted")
+    eq(c.autoNextPending,nil)
+    eq(c.autoBlockApproval,nil)
+    e.advance(c.cfg.interTrialDelaySeconds + 1)
+    eq(e.playCalls,1)
 end)
 
 local function sessionFixture(inputs,enableMain,verifyProfile)

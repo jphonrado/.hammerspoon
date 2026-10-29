@@ -318,6 +318,38 @@ test("unsafe identifiers and invalid allocation groups are rejected before creat
     assert(not Storage.create(base, metadata, hs))
 end)
 
+test("synced canonical titles and exact legacy aliases identify only one page per set", function()
+    local aliasCount=0
+    for setName,content in pairs(Materials.sets) do
+        local accepted={}
+        for _,page in ipairs(content.pages) do
+            assert(not accepted[page.title] or accepted[page.title]==page.path)
+            accepted[page.title]=page.path
+        end
+        for target,aliases in pairs(Materials.targetTitleAliases[setName] or {}) do
+            local path
+            for _,page in ipairs(content.pages) do if page.target_id==target then path=page.path end end
+            assert(path,"Alias target has no canonical page")
+            for _,title in ipairs(aliases) do
+                assert(not accepted[title] or accepted[title]==path,"Alias conflicts with a different page")
+                accepted[title]=path
+            end
+            aliasCount=aliasCount+1
+        end
+    end
+    equal(aliasCount,9)
+    for group=1,4 do
+        for _,block in ipairs(Materials.buildPlan(group)) do
+            for _,trial in ipairs(block.trials) do
+                assert(type(trial.targetTitleAliases)=="table")
+                for _,alias in ipairs(trial.targetTitleAliases) do
+                    assert(alias~=trial.targetTitle)
+                end
+            end
+        end
+    end
+end)
+
 test("non-finite observations are rejected rather than written as valid numbers", function()
     local store = makeStore("non-finite")
     assert(not store:event("INVALID_NUMBER", {elapsed_s = math.huge}))
