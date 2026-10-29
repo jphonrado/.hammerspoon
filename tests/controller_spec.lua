@@ -77,7 +77,10 @@ local function fixture(group)
         function tap:isEnabled() return self.enabled end
         return tap
     end
-    hs.eventtap.keyStroke = function() if not env.neutralFails then env.title = "Study Start" end end
+    hs.eventtap.keyStroke = function(_,key)
+        env.keyStrokeKey = key
+        if not env.neutralFails then env.title = "Study Start" end
+    end
     local app = {name = function() return "Google Chrome" end}
     local win = {}
     function win:id() return 7 end
@@ -87,7 +90,8 @@ local function fixture(group)
     function win:screen() return {id = function() return 1 end} end
     function win:title() return env.title end
     function win:focus() env.front = true end
-    function win:focusTab()
+    function win:focusTab(index)
+        env.focusTabArg = index
         if not env.neutralFails then env.title = "Study Start"; return true end
         return false
     end
@@ -293,6 +297,25 @@ test("adapter ending an already completed session cannot mark it interrupted",fu
     eq(s.afterClosedCalls,0)
     eq(s.interruptedCalls,0)
     eq(c.fatal,false)
+end)
+
+test("adapter selects the LAST tab as Study Start (6 low, 16 high)",function()
+    for _,case in ipairs({{group=1,expected=6},{group=2,expected=16}}) do
+        local c,e = fixture(case.group)
+        eq(c.model:currentBlock().expectedTabCount,case.expected)
+        c:approveSetup();c:startTrial()
+        eq(e.focusTabArg,case.expected,"focusTab must target the last tab")
+        eq(c.model.phase,"PROMPT")
+    end
+end)
+
+test("adapter falls back to Cmd+9 (last tab), never Cmd+1",function()
+    local c,e = fixture()
+    -- focusTab refuses (returns false) but the fallback keystroke works.
+    c.hs.window.get(7).focusTab = function() return false end
+    c:approveSetup();c:startTrial()
+    eq(e.keyStrokeKey,"9","Fallback must be Cmd+9")
+    eq(c.model.phase,"PROMPT")
 end)
 
 test("adapter completes 24 trial outcomes for each of the four allocation groups",function()

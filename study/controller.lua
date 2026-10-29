@@ -298,7 +298,7 @@ function M:approveSetup()
   if not self.hs.settings.get(self.cfg.settingsPrefix.."pointer") then return self:notice("Calibrate the pointer first") end
   if not self:maskSpec() then return self:notice("Calibrate this orientation's mask first") end
   local b=self.model:currentBlock()
-  local message=string.format("%s / %s (%s)\nExactly %d total tabs; Study Start first.\nVerify actual order, orientation, fixed panel width, scroll reset, hover aids OFF.\nOBS must record the mask, pointer and audio. Preparation must be hidden from the participant.\nConfirm these checks for this trial.",b.name,b.contentSet,b.topic,b.expectedTabCount)
+  local message=string.format("%s / %s (%s)\nExactly %d total tabs; Study Start LAST (rightmost/bottom).\nVerify actual order, orientation, fixed panel width, scroll reset, hover aids OFF.\nOBS must record the mask, pointer and audio. Preparation must be hidden from the participant.\nConfirm these checks for this trial.",b.name,b.contentSet,b.topic,b.expectedTabCount)
   local answer=self.hs.dialog.blockAlert("Researcher preflight",message,"Checks complete","Cancel")
   if answer~="Checks complete" then return end
   local ok,why=self.model:ready();if not ok then return self:notice(why) end
@@ -324,9 +324,12 @@ function M:startTrial()
   local masked,maskErr=self:showMask();if not masked then return self:emergency(maskErr) end
   local locked,lockErr=self:lock();if not locked then return self:emergency(lockErr) end
   local focusOK=false
-  local callOK,result=pcall(function() return win:focusTab(1) end)
+  -- Study Start is the LAST tab (6 at low load, 16 at high load).
+  -- Chrome's Cmd+9 always selects the last tab, whatever the tab count.
+  local lastTab=self.model:currentBlock().expectedTabCount
+  local callOK,result=pcall(function() return win:focusTab(lastTab) end)
   focusOK=callOK and result==true
-  if not focusOK then self.hs.eventtap.keyStroke({"cmd"},"1",0,win:application()) end
+  if not focusOK then self.hs.eventtap.keyStroke({"cmd"},"9",0,win:application()) end
   local deadline=self:now()+self.cfg.neutralWaitSeconds
   local function check()
     if self.model.phase~="PREPARING" then return end
