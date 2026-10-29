@@ -30,6 +30,11 @@ M.VIDEO_COLUMNS = columns({
     "incorrect_selections", "first_selection_correct", "no_selection",
     "technical_loss", "coder", "notes",
 })
+M.MAIN_COLUMNS = columns({
+    "controller_status", "measurement_source", "retrieval_time_s",
+    "total_tab_switches", "incorrect_selections", "first_selection_correct",
+    "no_selection", "technical_loss", "video_verified", "coder", "notes",
+})
 
 local function err(message) return nil, message end
 local function present(value) return value ~= nil and tostring(value) ~= "" end
@@ -264,7 +269,7 @@ function M.create(baseDir, meta, hs)
     }, Store)
     for _, entry in ipairs({
         {"events.csv", M.EVENT_COLUMNS}, {"trials_aux.csv", M.TRIAL_COLUMNS},
-        {"video_coding.csv", M.VIDEO_COLUMNS},
+        {"video_coding.csv", M.VIDEO_COLUMNS}, {"main_data.csv", M.MAIN_COLUMNS},
     }) do
         local ok, createError = writeText(join(path, entry[1]), table.concat(entry[2], ",") .. "\n")
         if not ok then return fail(store, createError) end
@@ -331,6 +336,19 @@ function Store:trial(record)
     -- into the authoritative coding sheet, even when the observer saw no error.
     local coded, codingError = appendCSV(self.hs, join(self.path, "video_coding.csv"), M.VIDEO_COLUMNS, coding)
     if not coded then return fail(self, codingError) end
+    local main = identity(self, record)
+    main.controller_status = record.status
+    main.measurement_source = record.measurement_source or "controller_title_detection"
+    main.retrieval_time_s = record.retrieval_time_s
+    main.total_tab_switches = record.total_tab_switches
+    main.incorrect_selections = record.incorrect_selections
+    main.first_selection_correct = record.first_selection_correct
+    main.no_selection = record.no_selection
+    main.technical_loss = record.technical_loss
+    main.video_verified = false
+    main.coder, main.notes = record.coder, record.notes
+    local written, mainError = appendCSV(self.hs, join(self.path, "main_data.csv"), M.MAIN_COLUMNS, main)
+    if not written then return fail(self, mainError) end
     self.seenTrials[key], self.trialCount = true, self.trialCount + 1
     return true
 end

@@ -20,6 +20,9 @@ names and consent records do not belong in this folder.
 - `video_coding.csv`: identity/status rows plus **blank** final measurement
   columns. Enter the video-coded results here, preferably in a separately saved
   analysis copy while retaining the original generated records.
+- `main_data.csv`: primary per-trial analysis rows. The controller records its
+  operational estimates here; cross-check these values against the video and
+  correct the analysis copy when the recording disagrees.
 
 At participant level, `ACTIVE.json` and `.session-lock/` reserve the participant.
 They survive interruption/reload so a new first trial cannot silently restart an
@@ -67,6 +70,20 @@ Completed retrieval time uses the agreed visible onset and first target-active
 frame. Timeouts have no completed retrieval-time value. A genuine no-selection
 attempt is distinct from an unobservable selection caused by recording failure.
 For a completed, verified trial, total switches = incorrect selections + 1.
+
+## Primary analysis rows
+
+`main_data.csv` contains the dependent-variable fields
+`retrieval_time_s`, `total_tab_switches`, `incorrect_selections`,
+`first_selection_correct`, `no_selection`, and `technical_loss`. For an
+automatically completed trial, `retrieval_time_s` starts when the controller
+removes the gray mask and ends when the correct target tab is detected.
+`measurement_source` identifies this as a controller title-detection estimate,
+and `video_verified` is initially false. Review the OBS recording and update a
+separate analysis copy when the visible mask disappearance or correct tab
+selection differs from the software timestamps. Manual completion does not
+produce a retrieval-time estimate because the controller cannot establish the
+correct tab-selection endpoint.
 
 ## Integrity behavior
 

@@ -231,7 +231,7 @@ end)
 
 test("deleted run directory is reported instead of attempting a stale checkpoint", function()
     local store = makeStore("deleted-run")
-    for _, name in ipairs({"checkpoint.json", "events.csv", "trials_aux.csv", "video_coding.csv"}) do
+    for _, name in ipairs({"checkpoint.json", "events.csv", "trials_aux.csv", "video_coding.csv", "main_data.csv"}) do
         assert(os.remove(store.path .. "/" .. name))
     end
     assert(os.remove(store.path .. "/session.json"))

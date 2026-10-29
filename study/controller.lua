@@ -536,6 +536,17 @@ function M:recordOutcome(record,source)
     row.aux_incorrect_count=self.aux.incorrect
     row.aux_first_correct=self.aux.first
   end
+  row.measurement_source="controller_title_detection"
+  if source=="completed_auto" and self.revealTime and record.timed_interval_started then
+    row.retrieval_time_s=self:now()-self.revealTime
+    row.total_tab_switches=self.aux.selections
+    row.incorrect_selections=self.aux.incorrect
+    row.first_selection_correct=self.aux.first == 1
+  elseif source=="timeout" then
+    row.no_selection=true
+  elseif source=="interrupted" then
+    row.technical_loss=true
+  end
   local ok,err=self.store:trial(row)
   if not ok then self:storageFailure(err) end
   return ok
