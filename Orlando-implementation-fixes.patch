@@ -1,0 +1,1703 @@
+diff --git a/DATA_DICTIONARY.md b/DATA_DICTIONARY.md
+index 50a20ff..24790d2 100644
+--- a/DATA_DICTIONARY.md
++++ b/DATA_DICTIONARY.md
+@@ -1,6 +1,6 @@
+ # Measurement records and session guards
+ 
+-Schema version: **1.0**. Raw software observations are auxiliary. Final study
++Schema version: **2.0** (new run folders only). Raw software observations are auxiliary. Final study
+ measurements come from the saved video and are entered separately.
+ 
+ ## Record layout
+@@ -20,9 +20,10 @@ names and consent records do not belong in this folder.
+ - `video_coding.csv`: identity/status rows plus **blank** final measurement
+   columns. Enter the video-coded results here, preferably in a separately saved
+   analysis copy while retaining the original generated records.
+-- `main_data.csv`: primary per-trial analysis rows. The controller records its
+-  operational estimates here; cross-check these values against the video and
+-  correct the analysis copy when the recording disagrees.
++- `main_data.csv`: UNVERIFIED per-trial operational estimates. This is not the
++  final analysis source. `tools/encode_session.py` produces `analysis_trials.csv`
++  from a separate, checked OBS coding copy without substituting estimates.
++
+ 
+ At participant level, `ACTIVE.json` and `.session-lock/` reserve the participant.
+ They survive interruption/reload so a new first trial cannot silently restart an
+@@ -38,17 +39,32 @@ Every CSV row carries `session_id`, `mode`, `participant`, `group`, `block`,
+ `condition`, `orientation`, `tab_load`, `content_set`, `trial`, `target_id`, and
+ `target_title`. Session-level events may leave trial-specific columns empty.
+ Trial outcome records require the block, condition, set, trial and target fields.
++Plan-derived fields add `is_repeat` (0/1), `target_task_position` (1-based task
++position, equal to browser position with neutral-LAST), `task_tab_count` (5/15),
++and `visible_tab_count` (6/16). These describe the approved plan, not an automatic
++measurement of the actual native layout.
+ 
+ ## Auxiliary events and outcomes
+ 
+ - `wall_epoch`: wall-clock seconds for matching records to sessions/recordings.
+ - `monotonic_s`: boot-relative seconds supplied by the controller.
+ - `elapsed_s`: auxiliary elapsed interval, never a rendered-frame guarantee.
+-- `observed_title`: title seen when the polling detector sampled the window.
++- `observed_title`: title seen at a polling sample or accessibility callback.
++- `observation_source`: `poll` or `accessibility` for observed transitions.
+ - `aux_selection_count`, `aux_incorrect_count`, `aux_first_correct`: polling
+   observations. A 0 remains 0; an unavailable value remains blank.
+ - `reveal_command_monotonic_s`: time the controller requested reveal, not proof
+   of the first visible video frame.
++- `mask_hide_returned_monotonic_s`: boot-relative marker immediately after mask
++  deletion returned. The command/return markers bracket software work; neither
++  establishes the rendered onset. Disk writes occur after mask removal.
++- `endpoint_monotonic_s`: observed endpoint captured before transition/outcome
++  storage. `observed_duration_s` is the elapsed observed interval, including
++  incomplete attempts; it is not completed RT for a timeout/interruption.
++- `detection_mode`: `accessibility_and_poll`, `poll_only`, or `manual`.
++- `max_poll_gap_s`: largest actual polling gap during the timed attempt.
++- `aux_incorrect_pages`: JSON list of wrong titles observed, including a return
++  to Study Start. Notifications may coalesce and samples may miss activations.
+ - `auto_detection_elapsed_s`: time to automatic title detection.
+ - `manual_ack_elapsed_s`: time to the facilitator's completion acknowledgment.
+   This includes facilitator reaction delay and is not final retrieval time.
+@@ -73,18 +89,42 @@ For a completed, verified trial, total switches = incorrect selections + 1.
+ 
+ ## Primary analysis rows
+ 
+-`main_data.csv` contains the dependent-variable fields
++`main_data.csv` contains provisional estimates using the dependent-variable field names
+ `retrieval_time_s`, `total_tab_switches`, `incorrect_selections`,
+ `first_selection_correct`, `no_selection`, and `technical_loss`. For an
+ automatically completed trial, `retrieval_time_s` starts when the controller
+ removes the gray mask and ends when the correct target tab is detected.
+ `measurement_source` identifies this as a controller title-detection estimate,
+-and `video_verified` is initially false. Review the OBS recording and update a
+-separate analysis copy when the visible mask disappearance or correct tab
+-selection differs from the software timestamps. Manual completion does not
++and `video_verified` is always false in the raw file. Counts are preserved for
++timed manual/timeout/interrupted outcomes when the detector was enabled. Missing
++first selection remains blank, not false; disabled detection leaves unavailable
++counts blank. `no_selection` and `technical_loss` remain blank pending review:
++a timeout may contain errors and an ordinary break need not lose data.
++Review OBS in a separate coding copy; export final data using
++[ENCODING.md](docs/ENCODING.md). Manual completion does not
+ produce a retrieval-time estimate because the controller cannot establish the
+ correct tab-selection endpoint.
+ 
++## Encoded outputs
++
++`analysis_trials.csv` preserves all 24 scheduled identities and joins only the
++manually coded OBS values. Missing terminal raw rows are `no_terminal_outcome`,
++which does not prove an unexposed trial after a crash. Coded completion requires
++frames/FPS, coder/recording, and consistent selection counts. `video_verified=1`
++identifies reviewed exposed outcomes; raw estimates are never used as fallback.
++
++`condition_summary.csv` includes mean completed RT with n, first-selection error
++rate with its observable-first-selection n, separately named activation error
++rate and timeouts. Incomplete RT stays missing. Interrupted/lost
++trials are retained in trial output and excluded from these descriptive summaries.
++
++**NASA-TLX is collected through the separate Google Forms survey.** The
++controller does not collect or score it. `survey_join_keys.csv` contains one row
++per condition with participant, session, block and condition IDs for a later
++join to Forms results. Match participant code AND condition, never row order;
++keep test/pilot data separate from main results. Preference/comfort responses
++also remain in the study's chosen survey/interview workflow.
++
+ ## Integrity behavior
+ 
+ Run directories must be new. Each append validates the exact CSV header and
+diff --git a/README.md b/README.md
+index 76b1ece..6e3e9f4 100644
+--- a/README.md
++++ b/README.md
+@@ -1,19 +1,19 @@
+ # HCI2000 Hammerspoon study controller
+ 
+ Revised controller for **Effects of Browser Tab Orientation & Tab Load on Navigation Performance**.
+-Version **2.1.0**, updated 29 October 2026 from the group's synced `implemented-hammerspoon` branch (`ff67ebb`), retaining the earlier issue-2/3/4 repairs.
++Version **2.2.0**, audited 29 October 2026 against `implemented-hammerspoon` at `ed02f4b`. See [the Orlando audit](docs/ORLANDO_AUDIT_2026-10-29.md) and [encoding guide](docs/ENCODING.md).
+ 
+ ## What this folder is
+ 
+ This is the macOS experiment controller in the `.hammerspoon` Git repository. Its repository root contains `init.lua`, `study/` and `orlando_audio/`. The Python/HTML content project is separate in `hci_exp/Tab-Sets-for-Experiment`. Hammerspoon runs this package on the study Mac; **Python is not required to run the experiment controller**. Optional Python/Lupa tools are for developer tests only.
+ 
+-The controller masks/reveals Chrome's tab region, plays the group's current target recordings, manages the trial schedule, and writes auxiliary records. **Saved OBS video and manual coding remain the source of final retrieval times, first-selection accuracy and selection counts.** Polling observations are not silently promoted to final measurements.
++The controller masks/reveals Chrome's tab region, plays the group's current target recordings, manages the trial schedule, and writes auxiliary records. **NASA-TLX is collected separately through Google Forms; the controller does not collect or score it.** **Saved OBS video and manual coding remain the source of final retrieval times, first-selection accuracy and selection counts.** Automatic observations are not silently promoted to final measurements. The newest baseline added `main_data.csv`; it remains an unverified estimate sheet. The encoding tool creates final performance exports from OBS coding and participant/condition keys for linking Google Forms.
+ 
+ ### Verification status
+ 
+ The code was implemented and tested locally with Lua 5.4, simulated Hammerspoon APIs and real temporary record files. Exact test counts and source fingerprints are in `docs/LOCAL_CHECKS.json`.
+ 
+-The final local run passed **81 behavioral cases and all 10 Lua syntax checks** (12 model, 22 integration, 47 controller/loader). `docs/MILESTONES.md` tracks implementation versus native-device verification for 2A-4B.
++The current local checks pass **96 Lua behavioral cases and all 10 Lua syntax checks** (12 model, 24 integration, 60 controller/loader), plus **15 Python encoding tests**. `docs/MILESTONES.md` tracks implementation versus native-device verification for 2A-4B.
+ 
+ **The actual macOS/Chrome/OBS checks have not been run here.** Input permissions, audio decoding/playback, native tab geometry, mask coverage and captured video must pass `docs/MAC_CHECKLIST.md` on the study laptop. Main-study mode is disabled by default; test and pilot modes work without declaring those checks complete.
+ 
+@@ -167,6 +167,7 @@ During input lock, use keyboard shortcuts: mouse clicks, including the HCI menu,
+   study/allocation.lua         Frozen 16-slot main allocation
+   orlando_audio/               20 current synced recordings (9 replaced by group)
+   records/                     New local test/pilot/main records
++  tools/encode_session.py      OBS coding/export and Forms join keys (optional Python)
+   DATA_DICTIONARY.md            CSV meanings and missing-value rules
+   docs/PREPARATION.md           Target positions and tab-order reference
+   docs/allocation.csv           Human-readable allocation/practice template
+@@ -177,9 +178,9 @@ During input lock, use keyboard shortcuts: mouse clicks, including the HCI menu,
+   tests/ and tools/            Optional developer tests
+ ```
+ 
+-Each new run lives under `records/<mode>/<participant>/<session_id>/` with `session.json`, `checkpoint.json`, `events.csv`, `trials_aux.csv` and `video_coding.csv`. The checkpoint also records the approved frame, saved pointer, both mask calibrations, automatic block approval, and pending automatic trial identity. Checkpoints are audit snapshots, not automatic-resume authorization. Expected current-audio fingerprints and the materials-definition fingerprint identify this delivery; the source-manifest hash remains historical input provenance, and these are provenance, not a claim that playback/wording was validated on the Mac. Do not put participant names or consent forms here. See `DATA_DICTIONARY.md` for exact columns.
++Each new run lives under `records/<mode>/<participant>/<session_id>/` with `session.json`, `checkpoint.json`, `events.csv`, `trials_aux.csv`, `main_data.csv` and `video_coding.csv`. The checkpoint also records the approved frame, saved pointer, both mask calibrations, automatic block approval, and pending automatic trial identity. Checkpoints are audit snapshots, not automatic-resume authorization. Expected current-audio fingerprints and the materials-definition fingerprint identify this delivery; the source-manifest hash remains historical input provenance, and these are provenance, not a claim that playback/wording was validated on the Mac. Do not put participant names or consent forms here. See `DATA_DICTIONARY.md` for exact columns.
+ 
+-`reveal_command_monotonic_s` records a software request, not a visible frame. `auto_detection_elapsed_s` includes polling delay. `manual_ack_elapsed_s` includes facilitator reaction time. Final retrieval time uses the agreed recorded start and first correct target-active frame. Completed verified trials satisfy `total_tab_switches = incorrect_selections + 1`.
++`reveal_command_monotonic_s` records a software request, not a visible frame. `auto_detection_elapsed_s` includes observation delivery/sampling delay. Accessibility title notifications supplement the 50-ms polling backup where supported; raw logs record detector mode and actual sample gaps. `manual_ack_elapsed_s` includes facilitator reaction time. Final retrieval time uses the agreed recorded start and first correct target-active frame. Completed verified trials satisfy `total_tab_switches = incorrect_selections + 1`.
+ 
+ ### For future developers and AI assistants
+ 
+@@ -205,4 +206,12 @@ python tools/run_checks.py --lua-python-path PATH_TO_ISOLATED_LUPA
+ - Sound loading/playback: https://www.hammerspoon.org/docs/hs.sound.html
+ - Chrome tab focusing: https://www.hammerspoon.org/docs/hs.window.html#focusTab
+ 
++- Accessibility title notifications: https://www.hammerspoon.org/docs/hs.axuielement.observer.html
++
+ These references describe APIs; they do not establish that the group's hardware/OBS configuration has passed validation.
++
++## Navigation encoding and Google Forms
++
++Follow [docs/ENCODING.md](docs/ENCODING.md) to prepare an OBS coding copy and export checked trial/condition CSVs. The exporter validates frames, FPS, counts and identities, preserves zero versus missing, and never substitutes automatic estimates. `survey_join_keys.csv` provides participant code plus condition for linking the separate Google Forms NASA-TLX results. Block order is not condition. No form, questionnaire UI, workload scoring or audio is changed by this audit.
++
++Encoding test command: `python -m unittest discover -s tests -p "test_*.py"`.
+diff --git a/docs/ENCODING.md b/docs/ENCODING.md
+new file mode 100644
+index 0000000..27582dd
+--- /dev/null
++++ b/docs/ENCODING.md
+@@ -0,0 +1,99 @@
++# Encode navigation data and link the survey
++
++The controller runs on the Mac without Python. The optional exporter below uses
++Python 3.10+ with no extra packages. Keep coded participant IDs and preserve the
++raw run. **NASA-TLX stays in Google Forms; this controller does not collect or
++score it.** No questionnaire UI or survey response template is added here.
++
++## What is captured
++
++| Measure/context | Automatic output | Final source |
++|---|---|---|
++| Orientation, load, content set, block/trial order, target, repeat, original ordinal position, tab counts | Every trial CSV | Frozen plan; researcher checks actual native layout |
++| Retrieval time | Software reveal/detection interval in main_data.csv and trials_aux.csv | First unmasked OBS frame to first correct target-active frame |
++| First-selection correctness, incorrect selections, total switches | Observed title transitions, including return to neutral | OBS-coded selections; repeated active-tab clicks are not switches |
++| Timeout/interruption | Explicit outcome/reason; completed RT stays blank | OBS distinguishes timeout after errors, no selection, break, and technical loss |
++| NASA-TLX | Participant/condition keys for linking data | Separate Google Forms survey |
++| Preference, comfort, recall or interview notes | No inferred response | Actual survey/interview instrument |
++
++The controller does not prove native orientation, tab order/count, sidebar width,
++audio wording, OBS recording, or every rapid activation. Accessibility
++notifications are best effort; poll_only is an explicit fallback. Neither
++provides video-frame precision. Continue the researcher's layout/recording checks.
++
++## Make an analysis copy
++
++Replace these example paths with the actual finished run and NEW output folders.
++Run from the repository root. Do this after finishing the run so raw statuses are stable.
++
++```bash
++python3 tools/encode_session.py prepare records/pilot/PILOT001/SESSION_ID --out coding/PILOT001
++```
++
++This creates a video worksheet with every scheduled trial. Entries lacking a
++terminal raw outcome are marked no_terminal_outcome: a crash can leave an
++exposed trial without an outcome row. Review video/checkpoint/exposure events;
++do not assume it was unexposed. Existing output folders are never overwritten.
++
++Fill video_coding.csv in the coding folder:
++
++- Leave identity columns unchanged. Set video_status to completed, timeout,
++  interrupted, technical_loss, or not_exposed. Blank is uncoded.
++- Supply video_file, coder, and explicit technical_loss=0/1 for coded exposed
++  trials. A break may have technical_loss=0; interruption does not imply loss.
++- For completion, enter the first unmasked frame, first correct target frame,
++  actual frame rate, total switches, incorrect switches, first-selection
++  correctness, and no_selection=0. RT is (target-start)/fps. Use a constant
++  frame rate and consistent frame indexing. Typed RTs disagreeing by more than
++  one frame are rejected; the frame-derived value is exported.
++- For timeout, leave completed RT and target frame blank. Code observable
++  selections. no_selection=1 requires zero switches/errors and blank first
++  correctness. A timeout after errors has no_selection=0, incorrect first
++  selection, and equal total/incorrect switches.
++- Missing/unobservable selections stay missing. Mark technical loss when the
++  recording cannot support the needed observations, and explain it in notes.
++
++## Export
++
++```bash
++python3 tools/encode_session.py export records/pilot/PILOT001/SESSION_ID --coding coding/PILOT001 --out analysis/PILOT001
++```
++
++- analysis_trials.csv: all scheduled identities and OBS-coded values, with
++  controller status, source, and review flag. No estimate fills missing coding.
++- condition_summary.csv: completed-trial mean RT with n; first-selection error
++  rate with n; separately named activation error rate; selection/timeout counts.
++- survey_join_keys.csv: one row per condition with participant code, condition,
++  session, block, orientation, load, and content set for linking Google Forms.
++
++**First-selection error rate** is incorrect first selections divided by
++observable first selections; no-selection trials do not enter that denominator.
++**Observed selection error rate** pools incorrect/total activations and is a
++different descriptive measure. Use the measure prespecified in the paper.
++Completed RT excludes timeouts. Interrupted/technical-loss rows remain available
++but are excluded from these descriptive summaries. Repeat trials are included
++and flagged; no new exclusion is imposed.
++
++## Join Google Forms separately
++
++Use **participant code AND condition** to match a condition summary to its TLX
++response. Block number is presentation order and is not interchangeable with
++condition, since orders are counterbalanced. The canonical condition codes are:
++
++| Code | Orientation | Load |
++|---|---|---|
++| H-L | Horizontal | Low |
++| H-H | Horizontal | High |
++| V-L | Vertical | Low |
++| V-H | Vertical | High |
++
++Map the actual Forms labels to these codes explicitly when combining results;
++this tool does not guess survey question names or rewrite the form. Keep pilot,
++test and main records distinct. Check for missing/duplicate responses before a
++join. If a single Forms response has four condition-specific sets of items,
++reshape it to one participant/condition row before joining. Participant-wide
++weighting items remain participant-wide under the paper's existing protocol.
++
++Two coders can prepare distinct folders and reconcile their OBS coding under the
++paper's checking procedure. This exporter does not calculate inter-rater
++reliability or infer the correct answer when coders disagree.
+diff --git a/docs/ENCODING_CHECKS.json b/docs/ENCODING_CHECKS.json
+new file mode 100644
+index 0000000..3b6a49a
+--- /dev/null
++++ b/docs/ENCODING_CHECKS.json
+@@ -0,0 +1,17 @@
++{
++  "passed": true,
++  "command": "python -m unittest discover -s tests -p test_*.py",
++  "test_cases": 15,
++  "native_macos_tested": false,
++  "scope": "OBS coding validation, missing/zero values, incomplete outcomes, identity, survey join keys; NASA-TLX remains in Google Forms",
++  "full_24_entry_export_smoke_test": {
++    "trial_rows": 24,
++    "condition_rows": 4,
++    "source": "clearly simulated Lua integration records",
++    "uncoded_values_kept_blank": true
++  },
++  "source_hashes": {
++    "tools/encode_session.py": "52f4915ed00a93010c9dc2c9b573b5a12bed0f91e913208a6fbf03b8c1461c0c",
++    "tests/test_encoding.py": "7234b72f141045dab1dfa0a7dc385629102c92d9b8a7d1952a6d154adccb0ca6"
++  }
++}
+diff --git a/docs/LOCAL_CHECKS.json b/docs/LOCAL_CHECKS.json
+index d982e19..2a85ef8 100644
+--- a/docs/LOCAL_CHECKS.json
++++ b/docs/LOCAL_CHECKS.json
+@@ -1,7 +1,7 @@
+ {
+   "passed": true,
+   "runtime": "Lua 5.4 via development-only Python lupa",
+-  "package_root": "/Users/jphonrado/.hammerspoon",
++  "package_root": "/workspace/scratch/a331770d76c2/orlando-implementation",
+   "syntax": [
+     {
+       "file": "init.lua",
+@@ -63,7 +63,7 @@
+     {
+       "suite": "integration",
+       "passed": true,
+-      "case_count": 23,
++      "case_count": 24,
+       "cases": [
+         {
+           "error": "nil",
+@@ -179,206 +179,263 @@
+           "error": "nil",
+           "passed": true,
+           "name": "non-finite observations are rejected rather than written as valid numbers"
++        },
++        {
++          "error": "nil",
++          "passed": true,
++          "name": "repeat/position metadata and zero/false estimates survive storage without final coding"
+         }
+       ]
+     },
+     {
+       "suite": "controller",
+       "passed": true,
+-      "case_count": 47,
++      "case_count": 60,
+       "cases": [
+         {
+-          "passed": true,
+-          "name": "adapter blocks navigation in ready and outcome hold"
++          "name": "adapter blocks navigation in ready and outcome hold",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter partial prompt pause consumes and cannot auto replay"
++          "name": "adapter partial prompt pause consumes and cannot auto replay",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter missing audio before exposure retains scheduled entry"
++          "name": "adapter missing audio before exposure retains scheduled entry",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter verifies neutral activation with a bounded wait"
++          "name": "adapter verifies neutral activation with a bounded wait",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter catches moved window before prompt exposure"
++          "name": "adapter catches moved window before prompt exposure",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter immediate post-reveal selection uses preverified neutral baseline"
++          "name": "adapter immediate post-reveal selection uses preverified neutral baseline",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter timeout without selection leaves final outcomes for video"
++          "name": "adapter timeout without selection leaves final outcomes for video",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter checkpoint failure cannot acquire a new fatal input lock"
++          "name": "adapter checkpoint failure cannot acquire a new fatal input lock",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter verified-start event failure cannot play the prompt"
++          "name": "adapter verified-start event failure cannot play the prompt",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter pause after session completion never writes closed records"
++          "name": "adapter pause after session completion never writes closed records",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter ending an already completed session cannot mark it interrupted"
++          "name": "adapter ending an already completed session cannot mark it interrupted",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter selects the LAST tab as Study Start (6 low, 16 high)"
++          "name": "adapter selects the LAST tab as Study Start (6 low, 16 high)",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter falls back to Cmd+9 (last tab), never Cmd+1"
++          "name": "adapter falls back to Cmd+9 (last tab), never Cmd+1",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter completes 24 trial outcomes for each of the four allocation groups"
++          "name": "adapter completes 24 trial outcomes for each of the four allocation groups",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter rejects stale mask dimensions in either orientation"
++          "name": "adapter rejects stale mask dimensions in either orientation",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "automatic block approval does not start the first prompt without Return"
++          "name": "automatic block approval does not start the first prompt without Return",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "automatic completion countdown resets neutral and pointer before the next prompt"
++          "name": "automatic completion countdown resets neutral and pointer before the next prompt",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "automatic flow completes all four groups with one approval per block and stops for TLX"
++          "name": "automatic flow completes all four groups with one approval per block and stops for TLX",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "automatic target detection accepts only the explicit legacy title for the same page"
++          "name": "automatic target detection accepts only the explicit legacy title for the same page",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "automatic scheduling event failure releases input and cannot start another trial"
++          "name": "automatic scheduling event failure releases input and cannot start another trial",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "interrupted audio in an automatic block revokes progression without replay"
++          "name": "interrupted audio in an automatic block revokes progression without replay",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "manual configuration keeps facilitator-paced trial starts"
++          "name": "manual configuration keeps facilitator-paced trial starts",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "scrolling block falls back to manual trials instead of claiming a scroll reset"
++          "name": "scrolling block falls back to manual trials instead of claiming a scroll reset",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "pause cancels an automatic countdown without replaying the completed trial"
++          "name": "pause cancels an automatic countdown without replaying the completed trial",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "Setup cancels an automatic countdown and requires fresh approval"
++          "name": "Setup cancels an automatic countdown and requires fresh approval",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "emergency during recording hold cannot create a later automatic prompt"
++          "name": "emergency during recording hold cannot create a later automatic prompt",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "moved window cancels automatic continuation before another exposure"
++          "name": "moved window cancels automatic continuation before another exposure",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "focus loss cancels automatic continuation without bringing Chrome back silently"
++          "name": "focus loss cancels automatic continuation without bringing Chrome back silently",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "missing study window cancels automatic continuation"
++          "name": "missing study window cancels automatic continuation",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "stale mask calibration cannot expose an automatic next trial"
++          "name": "stale mask calibration cannot expose an automatic next trial",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "checkpoint failure during automatic preparation releases input without a new prompt"
++          "name": "checkpoint failure during automatic preparation releases input without a new prompt",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "automatic-start event failure cannot play another prompt"
++          "name": "automatic-start event failure cannot play another prompt",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "missing next audio stops before exposure and retains the pending scheduled entry"
++          "name": "missing next audio stops before exposure and retains the pending scheduled entry",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "failed automatic neutral reset stops before the next target prompt"
++          "name": "failed automatic neutral reset stops before the next target prompt",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "timeout follows the configured automatic countdown without inventing a completed time"
++          "name": "timeout follows the configured automatic countdown without inventing a completed time",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "timeout can explicitly retain manual progression while normal completions are automatic"
++          "name": "timeout can explicitly retain manual progression while normal completions are automatic",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "manual target acknowledgment keeps the same automatic within-block flow"
++          "name": "manual target acknowledgment keeps the same automatic within-block flow",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "an interrupted automatic trial consumes its exposed entry and never restarts itself"
++          "name": "an interrupted automatic trial consumes its exposed entry and never restarts itself",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter rejects invalid group before creating session records"
++          "name": "adapter rejects invalid group before creating session records",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter main mode remains disabled until explicitly configured"
++          "name": "adapter main mode remains disabled until explicitly configured",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter rejects main mode with unverified recording settings"
++          "name": "adapter rejects main mode with unverified recording settings",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter rejects an unknown main participant without asking for a random group"
++          "name": "adapter rejects an unknown main participant without asking for a random group",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "adapter main participant obtains its frozen roster group and practice order"
++          "name": "adapter main participant obtains its frozen roster group and practice order",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "unexpected control exception releases input and guards interrupted session"
++          "name": "unexpected control exception releases input and guards interrupted session",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "unexpected timer callback error cannot leave input locked"
++          "name": "unexpected timer callback error cannot leave input locked",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "unexpected audio completion error invokes protected cleanup"
++          "name": "unexpected audio completion error invokes protected cleanup",
++          "passed": true
+         },
+         {
+-          "passed": true,
+-          "name": "loader chains unrelated shutdown once and does not retain stale HCI hooks"
++          "name": "loader chains unrelated shutdown once and does not retain stale HCI hooks",
++          "passed": true
++        },
++        {
++          "name": "timeout with wrong selections retains counts without inventing no-selection",
++          "passed": true
++        },
++        {
++          "name": "timeout without observable selection leaves first correctness and no-selection unknown",
++          "passed": true
++        },
++        {
++          "name": "participant break does not invent technical loss",
++          "passed": true
++        },
++        {
++          "name": "disabled detector leaves unavailable selection counts blank",
++          "passed": true
++        },
++        {
++          "name": "endpoint is captured before event disk latency",
++          "passed": true
++        },
++        {
++          "name": "reveal timestamp excludes checkpoint disk latency before mask removal",
++          "passed": true
++        },
++        {
++          "name": "observed target beyond deadline remains an incomplete software outcome",
++          "passed": true
++        },
++        {
++          "name": "returning to neutral is incorrect; repeated active-title samples do not add selections",
++          "passed": true
++        },
++        {
++          "name": "accessibility transitions between polls are observed and deduplicated",
++          "passed": true
++        },
++        {
++          "name": "unsupported accessibility notifications retain honest polling fallback",
++          "passed": true
++        },
++        {
++          "name": "observer fallback logging failure cannot reveal or relock a fatal trial",
++          "passed": true
++        },
++        {
++          "name": "lost mouse tap before reveal interrupts rather than starting unprotected",
++          "passed": true
++        },
++        {
++          "name": "observed polling gaps are recorded rather than claiming 50ms precision",
++          "passed": true
+         }
+       ]
+     }
+   ],
+-  "exported_simulated_examples": null,
++  "exported_simulated_examples": "/workspace/scratch/a331770d76c2/orlando-navigation-simulated",
+   "native_macos_tested": false,
+   "limitations": [
+     "No real Chrome tabs, Hammerspoon APIs, input hooks or OBS capture were exercised.",
+@@ -387,13 +444,13 @@
+   "source_hashes": {
+     "init.lua": "f467432bf90edcf3a570f57d916773896c13ace2e818a24064fc90916fee4855",
+     "study/allocation.lua": "6a9078207e7d1c8e89d8128ad2764d98e42991e95eae61712b25a753d5055f81",
+-    "study/config.lua": "cad250c0d85e0e441485daf788c85bc1ae97c4b4d2b6f62b49863d5e46c45ce3",
+-    "study/controller.lua": "3138b575543cd33fe861d5ff847cc350ddc44b58c62a32402d994efe78fa33be",
++    "study/config.lua": "8ba21b565bea2758f7b8d2033fe33a8c351afecae91226f417451a48e76b1640",
++    "study/controller.lua": "e9b4cc930eeea393eee77ec253765734ad6004e3680d760cc428cb9a1ea00153",
+     "study/materials.lua": "fbc7a3ae2a041528463221f7fb8a98dca82b2dd17d1b2aefcafc8f3ac8ffd01a",
+     "study/model.lua": "b034b4c9211d2a71d0fe76c462b7b176217640cf668d67d4a7bda8166a2fde10",
+-    "study/storage.lua": "2d61947a0cdd6a0d880074086e190aa1d5958e224c41976f7922ce29235791b0",
+-    "tests/controller_spec.lua": "89423b76caea5625fa3d4a87fc0262e0ba12d2d951e070f1b41ef13263c0070c",
+-    "tests/integration_spec.lua": "522e92b67ede71d6cd5849ba726e1326e4eae2328e7ed75ea6fc9717c0d762a1",
++    "study/storage.lua": "f2032830b225ac9eb6d628056d7e03cb136e0cce5a9c7de67a07a4661c94c9cf",
++    "tests/controller_spec.lua": "1c7ab2e6ba72fa7dec3174376983246b24673f5c2c9ac140c8ecba5b9610db7b",
++    "tests/integration_spec.lua": "c066f61022bfa836fa0f7ff594546e084617fcd054db59927c64045ababc7ce4",
+     "tests/model_spec.lua": "a95a8b11422a6113b4bd158798f17ce88a3f22b945e2309f54483fd6ff30cd7d"
+   }
+ }
+\ No newline at end of file
+diff --git a/docs/MAC_CHECKLIST.md b/docs/MAC_CHECKLIST.md
+index cd24c8b..1d5073d 100644
+--- a/docs/MAC_CHECKLIST.md
++++ b/docs/MAC_CHECKLIST.md
+@@ -23,7 +23,11 @@ Recording filenames/session IDs: __________
+ - [ ] Test correct; wrong-correct; wrong-neutral-correct; already-active click; rapid wrong-correct.
+ - [ ] Test timeout with no selection; timeout after errors; manual completion.
+ - [ ] A second coder checks the same frames/counts; differences are resolved and noted.
+-- [ ] Polling disagreements remain documented; they are not copied as final measurements.
++- [ ] Automatic/video disagreements remain documented; estimates are not copied as final measurements.
++- [ ] Check accessibility title notifications and poll-only fallback; compare rapid wrong-neutral-correct transitions to OBS.
++- [ ] Reveal command/return bracket and observed endpoint agree with the saved video within documented detection limits.
++- [ ] Encode a test run with tools/encode_session.py; check correct/incorrect/timeout/missing counts.
++- [ ] Google Forms results can be matched by coded participant AND condition; NASA-TLX remains outside this controller.
+ 
+ ## 3A - Native setup and input
+ 
+diff --git a/docs/MILESTONES.md b/docs/MILESTONES.md
+index 2b8c3fd..00f9fd1 100644
+--- a/docs/MILESTONES.md
++++ b/docs/MILESTONES.md
+@@ -13,11 +13,11 @@ Updated 29 October 2026. Original issue numbers are 2 (measurement), 3 (controll
+ 
+ ## Local evidence
+ 
+-`LOCAL_CHECKS.json` records **10/10 Lua syntax checks** and **81 passing behavioral cases**:
++`LOCAL_CHECKS.json` records **10/10 Lua syntax checks** and **96 passing Lua behavioral cases** plus **15 Python encoding tests**:
+ 
+ - 12 pure lifecycle cases.
+-- 22 storage/material/allocation integration cases using real temporary files.
+-- 47 Mac-adapter/loader cases using simulated Hammerspoon APIs.
++- 24 storage/material/allocation integration cases using real temporary files.
++- 60 Mac-adapter/loader cases using simulated Hammerspoon APIs.
+ 
+ The adapter checks include all four groups' complete 24-entry flows, stale-mask rejection, session gates, no renewed lock after failed logging, interruption handling, completed-session guards, exception cleanup and shutdown-hook chaining. The separate model/storage integration also verifies each group and the 16-slot allocation. These are simulations, not participant observations or native-device validation.
+ 
+@@ -30,3 +30,7 @@ Use `MAC_CHECKLIST.md` on the actual study Mac. The controller defaults to test/
+ ## Automation restoration after synced group edits
+ 
+ Version2.1.0 restores three-second automatic progression after normal completions/timeouts within an all-tabs-visible approved block. It retains recording hold, logs, verified neutral/pointer/frame reset, interruption/no-replay guards and manual condition boundaries. The original facilitator-paced behavior remains configurable and is used for scrolling layouts. This local record does not certify native playback/visibility; the updated Mac checklist remains NOT RUN.
++
++## Orlando audit, version 2.2.0
++
++Audited implemented-hammerspoon at ed02f4b. Fixed timeout/interruption classification, reveal/endpoint disk-latency contamination, unavailable-count handling, and added optional accessibility observations with polling fallback. Added repeat/position/count metadata and a checked OBS encoding/export tool. NASA-TLX remains in Google Forms; only participant/condition join keys are exported. See ORLANDO_AUDIT_2026-10-29.md and ENCODING.md. Native Mac verification remains NOT RUN.
+diff --git a/docs/ORLANDO_AUDIT_2026-10-29.md b/docs/ORLANDO_AUDIT_2026-10-29.md
+new file mode 100644
+index 0000000..d9b9c20
+--- /dev/null
++++ b/docs/ORLANDO_AUDIT_2026-10-29.md
+@@ -0,0 +1,64 @@
++# Orlando implementation audit — 29 October 2026
++
++Audited baseline: `jphonrado/.hammerspoon`, **implemented-hammerspoon**,
++`ed02f4bbd947162a1e5088843a48226a865a018c`. This review supersedes findings from
++the older `main` branch; that branch was not used as the repair base.
++
++## What the implementation branch already did
++
++Automatic exact-title completion, wrong-title tracking, neutral-LAST reset,
++pointer reset/lock, prerecorded playback, mask disappearance as start cue,
++timeout handling, a 0.30-second endpoint display hold, and three-second automatic
++within-block continuation were present. It also already separated manual
++acknowledgment from software detection, used a monotonic clock, preserved
++exposures across failures, and wrote run-specific files with restart guards.
++The original positions, paper assignments and target identities are retained.
++
++The implementation therefore did **not** have all its automation removed.
++Some earlier revisions intentionally used manual progression; the audited branch
++restored/configured progression with `autoAdvance=true`. No extension is added.
++
++## Confirmed gaps repaired
++
++1. Every timeout was written as `no_selection=true`, including timeouts with
++   observed incorrect selections. That field now remains unknown until coding;
++   observed counts, including incomplete-trial counts, are preserved.
++2. Every interruption was written as `technical_loss=true`, although a voluntary
++   break need not lose data. Classification now belongs to the recording check.
++3. Reveal time was captured before checkpoint/event writes preceding mask
++   removal, making disk latency part of estimated RT. Removal is now bracketed
++   before those writes. Video still determines the actual visible onset.
++4. The automatic endpoint was recomputed after writing the observed-transition
++   event. It is now captured before event/storage latency and reused consistently.
++5. Detection-disabled trials could retain zero-valued unavailable observations.
++   Such counts stay blank, while genuine observed 0/false values are preserved.
++6. Polling alone could miss transitions between 50-ms samples. A best-effort
++   window-title accessibility observer now supplements polling. Detector mode,
++   actual maximum sample gap, observed source and wrong-page list are recorded.
++   Notifications can coalesce and polling can miss events: OBS remains primary.
++7. Trial outputs lacked repeat/position/count columns. They now include the
++   original task position, repeat flag, and 5/15 task and 6/16 visible counts.
++8. Final encoding lacked a checked export path. A standard-library exporter now
++   validates OBS coding, preserves missing data, and produces trial/condition
++   tables and participant/condition survey join keys. **NASA-TLX stays in the
++   separate Google Forms survey**; it is neither collected nor scored here.
++
++## Remaining native or researcher work
++
++Run the Mac checklist using the patched package. Confirm actual audio wording
++(`Target: <exact title>.`, no spoken Go), mask visibility in OBS, all-tabs-visible
++geometry, neutral-LAST, pointer, native permissions, and rapid-selection coding.
++All title/audio files are preserved; no recording was transcribed or re-recorded
++in this audit. Enter the measured sidebar width, recording FPS, device/browser
++settings. Continue collecting questionnaire responses through Google Forms.
++Review actual tab layout/order at setup;
++the controller does not automatically certify it.
++
++Keep original raw logs and recordings. `main_data.csv` remains an **unverified
++automatic estimate sheet**; `analysis_trials.csv` from the encoding tool uses
++OBS-coded values only. No-selection, technical loss and missing first selection
++are distinct. NASA-TLX, preference and comfort cannot be inferred from clicks.
++
++No paper was edited. Echo should eventually document the final validated
++controller version, new fields, timing brackets/detection limits, neutral-LAST,
++exact-title recordings, and the retained OBS coding procedure after piloting.
+diff --git a/records/README.md b/records/README.md
+index 9a8ba64..5849d77 100644
+--- a/records/README.md
++++ b/records/README.md
+@@ -2,7 +2,10 @@
+ 
+ The controller creates separate test/pilot/main participant and run directories here.
+ No records from the original ZIP are reused. Keep names and consent files separate.
+-`main_data.csv` is the primary per-trial analysis file; cross-check its controller
+-estimates against the OBS video and retain a separate corrected analysis copy.
++`main_data.csv` contains UNVERIFIED controller estimates. Final performance data
++come from OBS coding; `tools/encode_session.py` exports `analysis_trials.csv`
++and `condition_summary.csv` without substituting those estimates.
+ Retain the raw data and the generated video-coding worksheet.
++NASA-TLX remains in the separate Google Forms survey. The performance exporter
++provides participant/condition join keys. See ../docs/ENCODING.md.
+ See ../DATA_DICTIONARY.md and ../README.md for session guards and recovery rules.
+diff --git a/study/config.lua b/study/config.lua
+index c390e39..aa3c4b3 100644
+--- a/study/config.lua
++++ b/study/config.lua
+@@ -1,11 +1,13 @@
+ -- Researcher settings. No Python or browser extension is required.
+ return {
+-  version = "2.1.0",
++  version = "2.2.0",
+   chromeAppName = "Google Chrome",
+   neutralTitle = "Study Start",
+   postPromptDelaySeconds = 0.40,
+   timeoutSeconds = 60,
+   pollIntervalSeconds = 0.05,
++  pollGapWarningSeconds = 0.20, -- Flag delayed observations for OBS review.
++  accessibilityNotifications = true, -- Best effort, with title polling as backup.
+   neutralWaitSeconds = 2.0,
+   windowTolerancePixels = 3,
+   outcomeHoldSeconds = 0.30, -- Provisional: verify the correct page is visible in OBS.
+diff --git a/study/controller.lua b/study/controller.lua
+index f86f461..bfd1a85 100644
+--- a/study/controller.lua
++++ b/study/controller.lua
+@@ -108,6 +108,10 @@ function M:cancelTimers()
+   for _,t in pairs(self.timers) do t:stop() end
+   self.timers={}
+   self.autoNextPending=nil
++  if self.titleObserver then
++    local observer=self.titleObserver;self.titleObserver=nil
++    pcall(function()observer:stop()end)
++  end
+ end
+ function M:after(key,delay,fn)
+   if self.timers[key] then self.timers[key]:stop() end
+@@ -431,7 +435,8 @@ function M:startTrial(automatic)
+       local actual=self.hs.mouse.absolutePosition()
+       if math.abs(actual.x-p.x)>2 or math.abs(actual.y-p.y)>2 then return self:emergency("Pointer reset failed") end
+       self.lastTitle=self.cfg.neutralTitle
+-      self.aux={selections=0,incorrect=0,first=nil,pages={}}
++      self.aux={selections=0,incorrect=0,first=nil,pages={},maxPollGap=0}
++      self.detectionMode=nil;self.hideReturnedTime=nil;self.lastPollTime=nil
+       local detail="Neutral title/frame/pointer checked; "..(automatic==true
+         and "native layout relies on retained all-tabs-visible block approval"
+         or "native layout manually approved before this start")
+@@ -481,22 +486,69 @@ function M:reveal()
+   local win,err=self:validWindow(true)
+   if not win then return self:emergency(err) end
+   if normalizedTitle(win:title())~=self.cfg.neutralTitle then return self:emergency("Neutral page changed before reveal") end
++  if not self.mouseTap or (self.mouseTap.isEnabled and not self.mouseTap:isEnabled()) then
++    return self:emergency("Input lock was lost before reveal")
++  end
+   self.lastTitle=self.cfg.neutralTitle -- Known baseline established BEFORE input release.
++  self:armTitleObserver(win)
++  if self.fatal then return end
+   local ok,why=self.model:reveal();if not ok then return self:emergency(why) end
++  -- No disk writes or event logging between this marker and the hide request.
+   self.revealTime=self:now()
+   self.model.currentRecord.reveal_command_monotonic_s=self.revealTime
++  self:hideMask()
++  self.hideReturnedTime=self:now()
++  self.model.currentRecord.mask_hide_returned_monotonic_s=self.hideReturnedTime
++  self.lastPollTime=self.hideReturnedTime
++  self:unlock()
+   if not self:checkpoint() then return end
+   if not self:event("REVEAL_COMMAND",{detail="Software marker, not the first recorded visible frame"}) then return end
+-  self:hideMask();self:unlock()
+-  self:after("timeout",self.cfg.timeoutSeconds,function() self:finish("timeout") end)
++  local remaining=math.max(0,self.cfg.timeoutSeconds-(self:now()-self.revealTime))
++  self:after("timeout",remaining,function() self:finish("timeout") end)
+   if self.cfg.autoDetectTarget then
+     self.timers.poll=self.hs.timer.doEvery(self.cfg.pollIntervalSeconds,function() self:guard(function()self:poll()end) end)
+   end
+ end
++
++function M:armTitleObserver(win)
++  self.detectionMode=self.cfg.autoDetectTarget and "poll_only" or "manual"
++  if not self.cfg.autoDetectTarget or not self.cfg.accessibilityNotifications then return end
++  local ax=self.hs.axuielement
++  if not ax or not ax.observer then return end
++  local observer
++  local ok,err=pcall(function()
++    observer=ax.observer.new(win:application():pid())
++    observer:callback(function() self:guard(function() self:observeTitle("accessibility") end) end)
++    observer:addWatcher(ax.windowElement(win),"AXTitleChanged")
++    observer:start()
++    assert(observer:isRunning(),"Accessibility observer failed to start")
++  end)
++  if ok then self.titleObserver=observer;self.detectionMode="accessibility_and_poll"
++  else
++    if observer then pcall(function()observer:stop()end) end
++    self:event("TITLE_OBSERVER_UNAVAILABLE",{detail=tostring(err).."; auxiliary polling retained"})
++  end
++end
++
+ function M:poll()
++  if self.fatal or not self.model or self.model.phase~="RUNNING" then return end
++  local now=self:now()
++  local gap=now-(self.lastPollTime or now)
++  self.lastPollTime=now
++  self.aux.maxPollGap=math.max(self.aux.maxPollGap or 0,gap)
++  if gap>(self.cfg.pollGapWarningSeconds or 0.20) then
++    if not self:event("POLL_GAP",{elapsed_s=gap,detail="Actual sample gap; reconcile selections against OBS"}) then return end
++  end
++  self:observeTitle("poll")
++end
++
++function M:observeTitle(source)
+   if self.fatal or not self.model or self.model.phase~="RUNNING" then return end
+   local win,err=self:validWindow(true)
+   if not win then return self:emergency(err) end
++  local observedAt=self:now()
++  -- A delayed callback must not convert a deadline violation into completion.
++  if observedAt-self.revealTime>=self.cfg.timeoutSeconds then return self:finish("timeout",observedAt) end
+   local title=normalizedTitle(win:title())
+   if title==self.lastTitle then return end
+   self.lastTitle=title
+@@ -512,12 +564,13 @@ function M:poll()
+   self.aux.selections=self.aux.selections+1
+   if self.aux.first==nil then self.aux.first=correct and 1 or 0 end
+   if not correct then self.aux.incorrect=self.aux.incorrect+1;self.aux.pages[#self.aux.pages+1]=title end
+-  self:event("TITLE_CHANGE_OBSERVED",{observed_title=title,elapsed_s=self:now()-self.revealTime,
++  self:event("TITLE_CHANGE_OBSERVED",{observed_title=title,elapsed_s=observedAt-self.revealTime,
++    monotonic_s=observedAt,observation_source=source,
+     aux_selection_count=self.aux.selections,aux_incorrect_count=self.aux.incorrect,
+-    aux_first_correct=self.aux.first,detail="Polling observation; verify all selections against video"})
+-  if correct and not self.fatal then self:finish("completed_auto") end
++    aux_first_correct=self.aux.first,detail="Observed transition; verify all selections against video"})
++  if correct and not self.fatal then self:finish("completed_auto",observedAt) end
+ end
+-function M:recordOutcome(record,source)
++function M:recordOutcome(record,source,endpoint)
+   if not record or not self.store then return true end
+   local b=self.meta.plan[record.block_index]
+   local row=copy(record)
+@@ -526,37 +579,48 @@ function M:recordOutcome(record,source)
+   row.timed_started=record.timed_interval_started
+   row.reason=record.detail
+   row.verification_required=true
++  endpoint=endpoint or self:now()
++  row.detection_mode=self.detectionMode
++  row.mask_hide_returned_monotonic_s=record.mask_hide_returned_monotonic_s
++  row.endpoint_monotonic_s=record.timed_interval_started and endpoint or nil
+   if self.revealTime and record.timed_interval_started then
+     row.reveal_command_monotonic_s=self.revealTime
+-    if source=="completed_auto" then row.auto_detection_elapsed_s=self:now()-self.revealTime end
+-    if source=="completed_manual" then row.manual_ack_elapsed_s=self:now()-self.revealTime end
++    row.observed_duration_s=endpoint-self.revealTime
++    if source=="completed_auto" then row.auto_detection_elapsed_s=endpoint-self.revealTime end
++    if source=="completed_manual" then row.manual_ack_elapsed_s=endpoint-self.revealTime end
+   end
+-  if self.aux and record.timed_interval_started then
++  if self.aux and record.timed_interval_started and self.cfg.autoDetectTarget then
+     row.aux_selection_count=self.aux.selections
+     row.aux_incorrect_count=self.aux.incorrect
+     row.aux_first_correct=self.aux.first
+-  end
+-  row.measurement_source="controller_title_detection"
++    row.aux_incorrect_pages=self.aux.pages
++    row.max_poll_gap_s=self.aux.maxPollGap
++    -- Counts remain observed estimates even for incomplete/manual outcomes.
++    row.total_tab_switches=self.cfg.autoDetectTarget and self.aux.selections or nil
++    row.incorrect_selections=self.cfg.autoDetectTarget and self.aux.incorrect or nil
++    row.first_selection_correct=self.cfg.autoDetectTarget and self.aux.first~=nil
++      and (self.aux.first==1) or nil
++    -- Lua's and/or idiom loses false. Preserve a genuine wrong first selection.
++    if self.cfg.autoDetectTarget and self.aux.first==0 then row.first_selection_correct=false end
++  end
++  row.measurement_source="controller_"..(self.detectionMode or "not_started")
+   if source=="completed_auto" and self.revealTime and record.timed_interval_started then
+-    row.retrieval_time_s=self:now()-self.revealTime
+-    row.total_tab_switches=self.aux.selections
+-    row.incorrect_selections=self.aux.incorrect
+-    row.first_selection_correct=self.aux.first == 1
+-  elseif source=="timeout" then
+-    row.no_selection=true
+-  elseif source=="interrupted" then
+-    row.technical_loss=true
++    row.retrieval_time_s=endpoint-self.revealTime
+   end
++  -- Zero observed switches cannot prove no selection: sampling may miss one.
++  -- A timeout can contain wrong selections; a voluntary break is not data loss.
++  row.no_selection=nil;row.technical_loss=nil
+   local ok,err=self.store:trial(row)
+   if not ok then self:storageFailure(err) end
+   return ok
+ end
+-function M:finish(status)
++function M:finish(status,endpoint)
+   if not self.model or self.fatal or self.model.phase~="RUNNING" then return end
++  endpoint=endpoint or self:now()
+   local ok,record=self.model:finish(status,"Final outcome measurements require video coding")
+   if not ok then return self:notice(record) end
+   self:cancelTimers()
+-  if not self:recordOutcome(record,status) then return end
++  if not self:recordOutcome(record,status,endpoint) then return end
+   self:event("TRIAL_OUTCOME",{detail=status});if self.fatal then return end
+   if not self:checkpoint() then return end
+   local locked,err=self:lock();if not locked then return self:emergency(err) end
+@@ -575,6 +639,7 @@ function M:finish(status)
+   end)
+ end
+ function M:emergency(reason)
++  local endpoint=self:now()
+   self:cancelTimers();self:stopSound();self:unlock();self:hideMask()
+   self.setupApproved=false
+   self.autoBlockApproval=nil;self.autoNextPending=nil
+@@ -591,7 +656,7 @@ function M:emergency(reason)
+       -- Already safe/non-running; do not create a second outcome.
+     else
+       local ok,record=self.model:interrupt(reason)
+-      if ok and record then self:recordOutcome(record,"interrupted") end
++      if ok and record then self:recordOutcome(record,"interrupted",endpoint) end
+     end
+     self:event("PAUSE_OR_INTERRUPTION",{detail=reason})
+     self:checkpoint()
+diff --git a/study/storage.lua b/study/storage.lua
+index 7552562..ac97de2 100644
+--- a/study/storage.lua
++++ b/study/storage.lua
+@@ -1,13 +1,14 @@
+ -- Study records: append-only auxiliary observations and a separate coding sheet.
+ -- No Hammerspoon globals are required: pass hs to create/inspectParticipant.
+ -- A surviving ACTIVE.json / .session-lock is deliberately NOT auto-resumed.
+-local M = { SCHEMA_VERSION = "1.0" }
++local M = { SCHEMA_VERSION = "2.0" }
+ local Store = {}
+ Store.__index = Store
+ 
+ local COMMON = {
+     "session_id", "mode", "participant", "group", "block", "condition",
+     "orientation", "tab_load", "content_set", "trial", "target_id", "target_title",
++    "is_repeat", "target_task_position", "task_tab_count", "visible_tab_count",
+ }
+ local function columns(extra)
+     local out = {}
+@@ -17,12 +18,14 @@ local function columns(extra)
+ end
+ M.EVENT_COLUMNS = columns({
+     "phase", "event", "wall_epoch", "monotonic_s", "elapsed_s", "observed_title",
+-    "aux_selection_count", "aux_incorrect_count", "aux_first_correct", "detail",
++    "aux_selection_count", "aux_incorrect_count", "aux_first_correct", "observation_source", "detail",
+ })
+ M.TRIAL_COLUMNS = columns({
+     "status", "prompt_exposed", "timed_started", "reveal_command_monotonic_s",
+     "auto_detection_elapsed_s", "manual_ack_elapsed_s", "aux_selection_count",
+-    "aux_incorrect_count", "aux_first_correct", "verification_required", "reason",
++    "aux_incorrect_count", "aux_first_correct", "aux_incorrect_pages", "detection_mode",
++    "mask_hide_returned_monotonic_s", "endpoint_monotonic_s", "observed_duration_s",
++    "max_poll_gap_s", "verification_required", "reason",
+ })
+ M.VIDEO_COLUMNS = columns({
+     "controller_status", "video_status", "video_file", "video_start_frame",
+@@ -224,7 +227,7 @@ function Store:_guard()
+ end
+ local function identity(store, ctx)
+     ctx = ctx or {}
+-    return {
++    local result = {
+         session_id = store.meta.session_id, mode = store.meta.mode,
+         participant = store.meta.participant, group = store.meta.group,
+         block = pick(ctx.block, ctx.block_index, ctx.blockIndex),
+@@ -235,6 +238,27 @@ local function identity(store, ctx)
+         target_id = pick(ctx.target_id, ctx.targetID),
+         target_title = pick(ctx.target_title, ctx.targetTitle),
+     }
++    local block = store.meta.plan and store.meta.plan[tonumber(result.block)]
++    if block then
++        result.condition = result.condition or block.name
++        result.orientation = result.orientation or block.orientation
++        result.tab_load = result.tab_load or block.tabLoad
++        result.content_set = result.content_set or block.contentSet
++        result.visible_tab_count = block.expectedTabCount
++        result.task_tab_count = block.expectedTabCount and block.expectedTabCount - 1
++        local index = tonumber(tostring(result.trial or ""):match("(%d+)$"))
++        local trial = index and block.trials and block.trials[index]
++        if trial then
++            result.is_repeat = 0
++            for i = 1, index - 1 do
++                if block.trials[i].targetID == trial.targetID then result.is_repeat = 1 end
++            end
++            for pos, path in ipairs(block.taskOrder or {}) do
++                if path == trial.path then result.target_task_position = pos end
++            end
++        end
++    end
++    return result
+ end
+ 
+ function M.create(baseDir, meta, hs)
+@@ -297,6 +321,7 @@ function Store:event(name, ctx)
+     row.wall_epoch = pick(ctx.wall_epoch, os.time())
+     row.monotonic_s, row.elapsed_s = ctx.monotonic_s, ctx.elapsed_s
+     row.observed_title, row.detail = ctx.observed_title, ctx.detail
++    row.observation_source = ctx.observation_source
+     row.aux_selection_count = pick(ctx.aux_selection_count, ctx.nSelections)
+     row.aux_incorrect_count = pick(ctx.aux_incorrect_count, ctx.nIncorrect)
+     row.aux_first_correct = pick(ctx.aux_first_correct, ctx.firstCorrect)
+@@ -325,6 +350,8 @@ function Store:trial(record)
+     row.aux_selection_count = pick(record.aux_selection_count, record.nSelections)
+     row.aux_incorrect_count = pick(record.aux_incorrect_count, record.nIncorrect)
+     row.aux_first_correct = pick(record.aux_first_correct, record.firstCorrect)
++    for _, name in ipairs({"aux_incorrect_pages", "detection_mode", "mask_hide_returned_monotonic_s",
++        "endpoint_monotonic_s", "observed_duration_s", "max_poll_gap_s"}) do row[name] = record[name] end
+     row.verification_required = true
+     row.reason = pick(record.reason, record.detail)
+     if row.prompt_exposed == true then self.exposureSeen = true end
+diff --git a/tests/controller_spec.lua b/tests/controller_spec.lua
+index 83d61bd..77a5b3f 100644
+--- a/tests/controller_spec.lua
++++ b/tests/controller_spec.lua
+@@ -908,4 +908,138 @@ test("loader chains unrelated shutdown once and does not retain stale HCI hooks"
+     if not ok then error(message) end
+ end)
+ 
++test("timeout with wrong selections retains counts without inventing no-selection",function()
++    local c,e,s=fixture()
++    running(c,e)
++    e.title="Wrong tab";c:poll()
++    e.advance(c.cfg.timeoutSeconds)
++    local r=s.trials[1]
++    eq(r.status,"timeout");eq(r.total_tab_switches,1);eq(r.incorrect_selections,1)
++    eq(r.first_selection_correct,false);eq(r.no_selection,nil)
++    eq(r.retrieval_time_s,nil);eq(r.aux_incorrect_pages[1],"Wrong tab")
++end)
++
++test("timeout without observable selection leaves first correctness and no-selection unknown",function()
++    local c,e,s=fixture()
++    running(c,e);e.advance(c.cfg.timeoutSeconds)
++    eq(s.trials[1].first_selection_correct,nil);eq(s.trials[1].no_selection,nil)
++    eq(s.trials[1].total_tab_switches,0)
++end)
++
++test("participant break does not invent technical loss",function()
++    local c,e,s=fixture()
++    running(c,e);c:emergency("Participant requests a break")
++    eq(s.trials[1].status,"interrupted");eq(s.trials[1].technical_loss,nil)
++    eq(s.trials[1].retrieval_time_s,nil)
++end)
++
++test("disabled detector leaves unavailable selection counts blank",function()
++    local c,e,s=fixture()
++    c.cfg.autoDetectTarget=false
++    running(c,e);c:finish("completed_manual")
++    eq(s.trials[1].total_tab_switches,nil);eq(s.trials[1].aux_selection_count,nil)
++    eq(s.trials[1].first_selection_correct,nil);eq(s.trials[1].retrieval_time_s,nil)
++end)
++
++test("endpoint is captured before event disk latency",function()
++    local c,e,s=fixture()
++    running(c,e)
++    local onset=c.revealTime
++    local event=s.event
++    function s:event(name,ctx)
++        if name=="TITLE_CHANGE_OBSERVED" then e.time=e.time+0.6 end
++        return event(self,name,ctx)
++    end
++    e.time=onset+0.2;e.title=c.model:currentTrial().targetTitle;c:poll()
++    assert(math.abs(s.trials[1].retrieval_time_s-0.2)<1e-8)
++    assert(math.abs(s.trials[1].auto_detection_elapsed_s-0.2)<1e-8)
++end)
++
++test("reveal timestamp excludes checkpoint disk latency before mask removal",function()
++    local c,e,s=fixture()
++    startPrompt(c,e);e.sound.callback(true)
++    local checkpoint=s.checkpoint
++    function s:checkpoint(snapshot)
++        if snapshot.phase=="RUNNING" then
++            assert(c.mask==nil,"Mask must already be hidden before the running checkpoint")
++            e.time=e.time+0.7
++        end
++        return checkpoint(self,snapshot)
++    end
++    e.advance(Config.postPromptDelaySeconds)
++    assert(c.hideReturnedTime>=c.revealTime)
++    assert(c.hideReturnedTime-c.revealTime<1e-8)
++end)
++
++test("observed target beyond deadline remains an incomplete software outcome",function()
++    local c,e,s=fixture()
++    running(c,e)
++    e.time=c.revealTime+c.cfg.timeoutSeconds+0.01
++    e.title=c.model:currentTrial().targetTitle;c:poll()
++    eq(s.trials[1].status,"timeout");eq(s.trials[1].retrieval_time_s,nil)
++end)
++
++test("returning to neutral is incorrect; repeated active-title samples do not add selections",function()
++    local c,e,s=fixture()
++    running(c,e)
++    e.title="Wrong tab";c:poll();c:poll()
++    e.title="Study Start";c:poll();c:poll()
++    e.title=c.model:currentTrial().targetTitle;c:poll()
++    eq(s.trials[1].total_tab_switches,3);eq(s.trials[1].incorrect_selections,2)
++    eq(s.trials[1].first_selection_correct,false)
++end)
++
++test("accessibility transitions between polls are observed and deduplicated",function()
++    local c,e,s=fixture()
++    local observer={running=false}
++    function observer:callback(fn)self.fn=fn end
++    function observer:addWatcher()return self end
++    function observer:start()self.running=true end
++    function observer:isRunning()return self.running end
++    function observer:stop()self.running=false end
++    c.hs.axuielement={observer={new=function()return observer end},windowElement=function(w)return w end}
++    c.hs.window.get(7):application().pid=function()return 321 end
++    running(c,e)
++    e.title="Wrong tab";observer.fn()
++    e.title="Study Start";observer.fn()
++    e.title=c.model:currentTrial().targetTitle;observer.fn()
++    eq(s.trials[1].detection_mode,"accessibility_and_poll")
++    eq(s.trials[1].total_tab_switches,3);eq(s.trials[1].incorrect_selections,2)
++    eq(observer.running,false)
++end)
++
++test("unsupported accessibility notifications retain honest polling fallback",function()
++    local c,e,s=fixture()
++    c.hs.axuielement={observer={new=function()error("not supported")end}}
++    running(c,e);e.title=c.model:currentTrial().targetTitle;c:poll()
++    eq(s.trials[1].detection_mode,"poll_only")
++end)
++
++test("observer fallback logging failure cannot reveal or relock a fatal trial",function()
++    local c,e,s=fixture()
++    c.hs.axuielement={observer={new=function()error("not supported")end}}
++    startPrompt(c,e);s.failEvent="TITLE_OBSERVER_UNAVAILABLE"
++    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
++    eq(c.fatal,true);eq(e.lockEnabled,false);eq(c.mask,nil)
++    assert(c.model.phase~="RUNNING")
++end)
++
++test("lost mouse tap before reveal interrupts rather than starting unprotected",function()
++    local c,e,s=fixture()
++    startPrompt(c,e);c.mouseTap.enabled=false
++    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
++    eq(c.model.phase,"PAUSED");eq(s.trials[1].status,"interrupted")
++    eq(s.trials[1].timed_started,false)
++end)
++
++test("observed polling gaps are recorded rather than claiming 50ms precision",function()
++    local c,e,s=fixture()
++    running(c,e);e.time=c.revealTime+0.4;c:poll()
++    e.title=c.model:currentTrial().targetTitle;c:poll()
++    assert(s.trials[1].max_poll_gap_s>=0.39)
++    local seen=false
++    for _,event in ipairs(s.events) do if event.name=="POLL_GAP" then seen=true end end
++    eq(seen,true)
++end)
++
+ return results
+diff --git a/tests/integration_spec.lua b/tests/integration_spec.lua
+index 9c7e9dc..027c588 100644
+--- a/tests/integration_spec.lua
++++ b/tests/integration_spec.lua
+@@ -367,4 +367,28 @@ test("non-finite observations are rejected rather than written as valid numbers"
+     equal(#rows(store, "events.csv"), 0)
+ end)
+ 
++test("repeat/position metadata and zero/false estimates survive storage without final coding", function()
++    local store = makeStore("metadata-estimates")
++    local plan=store.meta.plan
++    for ti, status in ipairs({"completed_auto","timeout","interrupted"}) do
++        local trial=plan[1].trials[ti]
++        assert(store:trial({block=1,trial=trial.id,condition=plan[1].name,content_set="A",
++            target_id=trial.targetID,target_title=trial.targetTitle,status=status,
++            timed_started=true,aux_selection_count=2,aux_incorrect_count=1,aux_first_correct=0,
++            aux_incorrect_pages={"Wrong title"},detection_mode="poll_only",max_poll_gap_s=0.05,
++            first_selection_correct=false,total_tab_switches=2,incorrect_selections=1,
++            measurement_source="controller_poll_only"}))
++    end
++    local aux=rows(store,"trials_aux.csv")
++    equal(aux[1].target_task_position,"1");equal(aux[3].is_repeat,"1")
++    equal(aux[1].visible_tab_count,"6");equal(aux[1].task_tab_count,"5")
++    equal(aux[1].aux_first_correct,"0");equal(aux[1].detection_mode,"poll_only")
++    local main=rows(store,"main_data.csv")
++    for _,r in ipairs(main) do
++        equal(r.first_selection_correct,"false");equal(r.video_verified,"false")
++        equal(r.no_selection,"");equal(r.technical_loss,"")
++    end
++    for _,r in ipairs(rows(store,"video_coding.csv")) do equal(r.first_selection_correct,"") end
++end)
++
+ return results
+diff --git a/tests/test_encoding.py b/tests/test_encoding.py
+new file mode 100644
+index 0000000..2de20cd
+--- /dev/null
++++ b/tests/test_encoding.py
+@@ -0,0 +1,140 @@
++"""Encoding checks use simulated records, never participant data."""
++import importlib.util
++import json
++from pathlib import Path
++import tempfile
++import unittest
++
++ROOT = Path(__file__).resolve().parents[1]
++SPEC = importlib.util.spec_from_file_location("encode_session", ROOT / "tools/encode_session.py")
++E = importlib.util.module_from_spec(SPEC)
++SPEC.loader.exec_module(E)
++
++
++def completed(**overrides):
++    row = dict(video_status="completed", video_file="SIMULATED.mkv", video_start_frame="60",
++               video_target_frame="180", frame_rate="60", retrieval_time_s="", total_tab_switches="1",
++               incorrect_selections="0", first_selection_correct="1", no_selection="0", technical_loss="0", coder="TEST")
++    return {**row, **overrides}
++
++
++class VideoTests(unittest.TestCase):
++    def test_frames_compute_rt_and_preserve_zero_errors(self):
++        row = E.video_values(completed())
++        self.assertEqual(row["retrieval_time_s"], 2)
++        self.assertEqual(row["incorrect_selections"], 0)
++
++    def test_wrong_first_then_correct(self):
++        row = E.video_values(completed(total_tab_switches="2", incorrect_selections="1", first_selection_correct="0"))
++        self.assertEqual(row["first_selection_correct"], 0)
++
++    def test_inconsistent_counts_rejected(self):
++        for kwargs in (dict(incorrect_selections="1"), dict(first_selection_correct="0"), dict(total_tab_switches="0")):
++            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
++                E.video_values(completed(**kwargs))
++
++    def test_incomplete_rt_cannot_be_filled(self):
++        with self.assertRaises(ValueError): E.video_values(completed(video_status="timeout"))
++
++    def test_observable_timeout_with_errors(self):
++        r = completed(video_status="timeout", video_target_frame="", total_tab_switches="2",
++                      incorrect_selections="2", first_selection_correct="0")
++        result = E.video_values(r)
++        self.assertIsNone(result["retrieval_time_s"])
++        self.assertEqual(result["no_selection"], 0)
++
++    def test_true_no_selection_keeps_first_accuracy_missing(self):
++        r = completed(video_status="timeout", video_target_frame="", total_tab_switches="0",
++                      incorrect_selections="0", first_selection_correct="", no_selection="1")
++        result = E.video_values(r)
++        self.assertIsNone(result["first_selection_correct"])
++
++    def test_break_can_have_no_technical_loss(self):
++        r = completed(video_status="interrupted", video_target_frame="", total_tab_switches="0",
++                      incorrect_selections="0", first_selection_correct="", no_selection="1")
++        self.assertEqual(E.video_values(r)["technical_loss"], 0)
++
++    def test_frame_disagreement_rejected(self):
++        with self.assertRaises(ValueError): E.video_values(completed(retrieval_time_s="4"))
++
++    def test_nonfinite_and_negative_rejected(self):
++        for value in ("nan", "inf", "-1"):
++            with self.subTest(value=value), self.assertRaises(ValueError):
++                E.video_values(completed(frame_rate=value))
++
++    def test_fractional_rate_supported(self):
++        r = E.video_values(completed(frame_rate="59.94"))
++        self.assertAlmostEqual(r["retrieval_time_s"], 120/59.94)
++
++    def test_missing_or_unreviewed_data_not_promoted(self):
++        self.assertEqual(E.video_values({})["video_verified"], 0)
++        with self.assertRaises(ValueError): E.video_values({"retrieval_time_s": "1.5"})
++
++    def test_coder_and_recording_are_required(self):
++        for field in ("coder", "video_file"):
++            with self.subTest(field=field), self.assertRaises(ValueError):
++                E.video_values(completed(**{field: ""}))
++
++
++class ExportTests(unittest.TestCase):
++    def test_missing_terminal_outcome_is_unknown_not_unexposed(self):
++        with tempfile.TemporaryDirectory() as folder:
++            run = Path(folder)/"run";run.mkdir()
++            meta = dict(session_id="SIM",participant="TEST",group=1,mode="test",plan=[dict(
++                name="H-L",orientation="H",tabLoad="low",contentSet="A",expectedTabCount=6,
++                taskOrder=["a.html"],trials=[dict(id="T1",targetID="P1",targetTitle="A",path="a.html")])])
++            (run/"session.json").write_text(json.dumps(meta))
++            E.write_csv(run/"trials_aux.csv",[],list(E.IDENTITY)+["status"])
++            E.prepare(run,Path(folder)/"coding")
++            row=E.read_csv(Path(folder)/"coding/video_coding.csv")[0]
++            self.assertEqual(row["controller_status"],"no_terminal_outcome")
++            self.assertEqual(row["video_status"],"")
++
++    def test_complete_prepare_and_export_never_uses_automatic_estimates(self):
++        with tempfile.TemporaryDirectory() as folder:
++            root = Path(folder)
++            run, coding, out = root/"run", root/"coding", root/"export"
++            run.mkdir()
++            meta = dict(session_id="SIM",participant="TEST",group=1,mode="test",plan=[dict(
++                name="H-L",orientation="H",tabLoad="low",contentSet="A",expectedTabCount=6,
++                taskOrder=["a.html","b.html"],trials=[
++                    dict(id="T1",targetID="P1",targetTitle="A",path="a.html"),
++                    dict(id="T2",targetID="P2",targetTitle="B",path="b.html"),
++                    dict(id="T3",targetID="P1",targetTitle="A",path="a.html")])])
++            (run/"session.json").write_text(json.dumps(meta))
++            schedule = E.scheduled(meta)
++            raw = [{**r,"status":"completed_auto","auto_detection_elapsed_s":123} for r in schedule]
++            E.write_csv(run/"trials_aux.csv",raw,list(raw[0]))
++            E.prepare(run,coding)
++            # An unreviewed session exports missing performance, not 123-second RTs.
++            E.export(run,coding,out)
++            blank = E.read_csv(out/"analysis_trials.csv")
++            self.assertEqual(blank[0]["retrieval_time_s"],"")
++            rows = E.read_csv(coding/"video_coding.csv")
++            rows[0].update(completed())
++            rows[1].update(completed(video_status="timeout",video_target_frame="",total_tab_switches="2",
++                                      incorrect_selections="2",first_selection_correct="0"))
++            (coding/"video_coding.csv").unlink()
++            E.write_csv(coding/"video_coding.csv",rows,list(rows[0]))
++            E.export(run,coding,root/"export2")
++            result = E.read_csv(root/"export2/condition_summary.csv")[0]
++            self.assertEqual(result["completed_rt_n"],"1")
++            self.assertEqual(result["mean_retrieval_time_s"],"2.0")
++            self.assertEqual(result["first_selection_error_rate"],"0.5")
++            self.assertEqual(result["timeouts"],"1")
++            self.assertEqual(result["uncoded_trials"],"1")
++            joins=E.read_csv(root/"export2/survey_join_keys.csv")
++            self.assertEqual(len(joins),1)
++            self.assertEqual(joins[0]["participant"],"TEST")
++            self.assertEqual(joins[0]["condition"],"H-L")
++            self.assertEqual(E.read_csv(root/"export2/analysis_trials.csv")[2]["is_repeat"],"1")
++            self.assertEqual(E.read_csv(run/"trials_aux.csv")[0]["auto_detection_elapsed_s"],"123")
++            with self.assertRaises(FileExistsError): E.prepare(run,coding)
++
++    def test_duplicate_or_mismatched_trials_rejected(self):
++        expected=[dict(block=1,trial="T1",participant="A")]
++        with self.assertRaises(ValueError): E.indexed([dict(block="1",trial="T1",participant="B")],expected,{})
++        with self.assertRaises(ValueError): E.indexed([expected[0],expected[0]],expected,{})
++
++
++if __name__ == "__main__": unittest.main()
+diff --git a/tools/encode_session.py b/tools/encode_session.py
+new file mode 100644
+index 0000000..c504d97
+--- /dev/null
++++ b/tools/encode_session.py
+@@ -0,0 +1,241 @@
++"""Prepare coding copies and export checked OBS performance data. Python standard library only.
++
++Never edits controller records. Auxiliary estimates are retained in the run, and
++are never used to fill missing video measurements or subjective responses.
++"""
++from __future__ import annotations
++
++import argparse
++import csv
++import json
++import math
++from pathlib import Path
++import statistics
++
++IDENTITY = ("session_id", "mode", "participant", "group", "block", "condition", "orientation", "tab_load",
++            "content_set", "trial", "target_id", "target_title", "is_repeat", "target_task_position",
++            "task_tab_count", "visible_tab_count")
++VIDEO = ("controller_status", "video_status", "video_file", "video_start_frame", "video_target_frame",
++         "frame_rate", "retrieval_time_s", "total_tab_switches", "incorrect_selections",
++         "first_selection_correct", "no_selection", "technical_loss", "coder", "notes")
++
++
++def read_csv(path: Path) -> list[dict[str, str]]:
++    with path.open(encoding="utf-8-sig", newline="") as f:
++        reader = csv.DictReader(f)
++        if not reader.fieldnames or len(set(reader.fieldnames)) != len(reader.fieldnames):
++            raise ValueError(f"Missing/duplicate CSV header: {path}")
++        result = list(reader)
++        if any(None in row or any(v is None for v in row.values()) for row in result):
++            raise ValueError(f"Malformed CSV row: {path}")
++        return result
++
++
++def write_csv(path: Path, rows: list[dict], columns: tuple | list) -> None:
++    with path.open("x", encoding="utf-8", newline="") as f:
++        writer = csv.DictWriter(f, columns, extrasaction="ignore")
++        writer.writeheader()
++        writer.writerows(rows)
++
++
++def number(value: str | None, label: str, *, integer=False, low=0, high=math.inf):
++    if value is None or value.strip() == "":
++        return None
++    try:
++        n = float(value)
++    except ValueError as exc:
++        raise ValueError(f"{label}: expected a number") from exc
++    if not math.isfinite(n) or not low <= n <= high or (integer and not n.is_integer()):
++        raise ValueError(f"{label}: invalid value {value!r}")
++    return int(n) if integer else n
++
++
++def boolean(value: str | None, label: str):
++    if value is None or not value.strip():
++        return None
++    text = value.strip().lower()
++    if text in ("1", "true"): return 1
++    if text in ("0", "false"): return 0
++    raise ValueError(f"{label}: use 1/0 or true/false")
++
++
++def scheduled(meta: dict) -> list[dict]:
++    result = []
++    for bi, block in enumerate(meta["plan"], 1):
++        seen = set()
++        for ti, trial in enumerate(block["trials"], 1):
++            row = {k: meta.get(k, "") for k in ("session_id", "mode", "participant", "group")}
++            row.update(block=bi, condition=block["name"], orientation=block["orientation"],
++                       tab_load=block["tabLoad"], content_set=block["contentSet"], trial=trial["id"],
++                       target_id=trial["targetID"], target_title=trial["targetTitle"],
++                       is_repeat=int(trial["targetID"] in seen),
++                       target_task_position=block["taskOrder"].index(trial["path"]) + 1,
++                       visible_tab_count=block["expectedTabCount"], task_tab_count=block["expectedTabCount"] - 1)
++            seen.add(trial["targetID"])
++            result.append(row)
++    return result
++
++
++def key(row: dict) -> tuple[str, str]:
++    return str(row["block"]), str(row["trial"])
++
++
++def indexed(rows: list[dict], expected: list[dict], meta: dict) -> dict:
++    allowed = {key(r): r for r in expected}
++    result = {}
++    for row in rows:
++        k = key(row)
++        if k not in allowed or k in result:
++            raise ValueError(f"Duplicate or unscheduled trial: {k}")
++        for field in IDENTITY:
++            if field in row and row[field] != "" and str(row[field]) != str(allowed[k].get(field, "")):
++                raise ValueError(f"Identity mismatch for {k}: {field}")
++        result[k] = row
++    return result
++
++
++def prepare(run: Path, out: Path) -> None:
++    meta = json.loads((run / "session.json").read_text())
++    plan = scheduled(meta)
++    raw = indexed(read_csv(run / "trials_aux.csv"), plan, meta)
++    out.mkdir(parents=True, exist_ok=False)
++    video = []
++    for row in plan:
++        row = dict(row)
++        row["controller_status"] = raw.get(key(row), {}).get("status", "no_terminal_outcome")
++        video.append(row)
++    write_csv(out / "video_coding.csv", video, IDENTITY + VIDEO)
++    (out / "CODING_README.txt").write_text(
++        "Analysis copy; preserve original logs and video. Do not edit identity columns.\n"
++        "video_status: completed, timeout, interrupted, technical_loss, or not_exposed.\n"
++        "Frame numbers: use one constant-rate source and its actual fps. RT=(target-start)/fps.\n"
++        "Set technical_loss and no_selection from observable video, not controller status.\n"
++        "Do not treat missing selections as incorrect or as zero selections.\n"
++        "NASA-TLX remains in Google Forms. Join by participant code and condition.\n", encoding="utf-8")
++
++
++def video_values(row: dict) -> dict:
++    status = row.get("video_status", "").strip()
++    if status not in ("", "completed", "timeout", "interrupted", "technical_loss", "not_exposed"):
++        raise ValueError(f"Invalid video_status: {status}")
++    result = {k: row.get(k, "") for k in VIDEO}
++    # Blank means unreviewed, even if all controller estimates are available.
++    result.update(measurement_source="OBS" if status else "uncoded", video_verified=0)
++    if not status:
++        if any(row.get(k, "") for k in VIDEO if k not in ("controller_status", "notes")):
++            raise ValueError("Video measurements require video_status and coder")
++        return result
++    if status == "not_exposed":
++        if any(row.get(k, "") for k in ("retrieval_time_s", "video_start_frame", "video_target_frame",
++                                         "total_tab_switches", "incorrect_selections", "first_selection_correct")):
++            raise ValueError("not_exposed cannot have trial measurements")
++        return result
++    if not row.get("coder", "").strip() or not row.get("video_file", "").strip():
++        raise ValueError("Coded trials require coder and video_file")
++    loss = boolean(row.get("technical_loss"), "technical_loss")
++    no_selection = boolean(row.get("no_selection"), "no_selection")
++    first = boolean(row.get("first_selection_correct"), "first_selection_correct")
++    total = number(row.get("total_tab_switches"), "total_tab_switches", integer=True)
++    wrong = number(row.get("incorrect_selections"), "incorrect_selections", integer=True)
++    rt = number(row.get("retrieval_time_s"), "retrieval_time_s")
++    start = number(row.get("video_start_frame"), "video_start_frame", integer=True)
++    end = number(row.get("video_target_frame"), "video_target_frame", integer=True)
++    fps = number(row.get("frame_rate"), "frame_rate", low=0.001)
++    if loss is None: raise ValueError("Explicit technical_loss=0/1 is required")
++    if status == "technical_loss" and loss != 1: raise ValueError("technical_loss status requires technical_loss=1")
++    if status == "completed":
++        if loss or no_selection != 0 or first is None or total is None or wrong is None:
++            raise ValueError("Completed trials require observable selections and no technical loss")
++        if total != wrong + 1 or (first == 1 and wrong != 0) or (first == 0 and wrong == 0):
++            raise ValueError("Inconsistent completed-trial selection counts")
++        if start is None or end is None or fps is None or end < start:
++            raise ValueError("Completed trials require ordered start/target frames and actual frame rate")
++        calculated = (end - start) / fps
++        if rt is not None and not math.isclose(rt, calculated, abs_tol=1 / fps + 1e-9):
++            raise ValueError("Entered RT disagrees with video frames by more than one frame")
++        rt = calculated
++    elif rt is not None or end is not None:
++        raise ValueError("Incomplete trials must have blank RT and target frame")
++    if no_selection == 1 and (total != 0 or wrong != 0 or first is not None):
++        raise ValueError("no_selection requires zero selections and blank first-selection correctness")
++    if status == "timeout" and not loss:
++        if no_selection is None or total is None or wrong is None or total != wrong:
++            raise ValueError("Observable timeout requires complete selection/no-selection coding")
++        if no_selection == 0 and (total < 1 or first != 0):
++            raise ValueError("Timeout with selections requires an incorrect first selection")
++    result.update(retrieval_time_s=rt, total_tab_switches=total, incorrect_selections=wrong,
++                  first_selection_correct=first, no_selection=no_selection, technical_loss=loss,
++                  video_verified=1)
++    return result
++
++
++def export(run: Path, coding: Path, out: Path) -> None:
++    meta = json.loads((run / "session.json").read_text())
++    plan = scheduled(meta)
++    coded = indexed(read_csv(coding / "video_coding.csv"), plan, meta)
++    raw = indexed(read_csv(run / "trials_aux.csv"), plan, meta)
++    if set(coded) != {key(r) for r in plan}: raise ValueError("Missing video coding rows; use prepare first")
++    results = []
++    for row in plan:
++        coding_row = coded[key(row)]
++        status = raw.get(key(row), {}).get("status", "no_terminal_outcome")
++        if coding_row["controller_status"] != status: raise ValueError("Controller status was changed in coding sheet")
++        if status != "no_terminal_outcome" and coding_row.get("video_status") == "not_exposed":
++            raise ValueError("Raw exposed trial cannot be relabeled not_exposed")
++        results.append({**row, **video_values(coding_row), "controller_status": status})
++    summaries = []
++    for bi, block in enumerate(meta["plan"], 1):
++        rows = [r for r in results if r["block"] == bi]
++        valid = [r for r in rows if r["video_verified"] == 1 and r["video_status"] in ("completed", "timeout") and r["technical_loss"] == 0]
++        rt = [r["retrieval_time_s"] for r in valid if r["retrieval_time_s"] is not None]
++        first = [r["first_selection_correct"] for r in valid if r["first_selection_correct"] is not None]
++        selections = sum(r["total_tab_switches"] for r in valid)
++        incorrect = sum(r["incorrect_selections"] for r in valid)
++        summaries.append({**{k: rows[0][k] for k in IDENTITY[:9]}, "scheduled_trials": len(rows),
++                          "coded_completed_or_timeout": len(valid), "completed_rt_n": len(rt),
++                          "mean_retrieval_time_s": statistics.mean(rt) if rt else "",
++                          "first_selection_n": len(first),
++                          "first_selection_error_rate": 1 - statistics.mean(first) if first else "",
++                          "observed_selection_error_rate": incorrect / selections if selections else "",
++                          "total_selections": selections, "incorrect_selections": incorrect,
++                          "timeouts": sum(r["video_status"] == "timeout" for r in valid),
++                          "no_selection_trials": sum(r.get("no_selection") == 1 for r in valid),
++                          "uncoded_trials": sum(not r["video_status"] for r in rows),
++                          "not_exposed_trials": sum(r["video_status"] == "not_exposed" for r in rows),
++                          "technical_loss_trials": sum(r.get("technical_loss") == 1 for r in rows),
++                          "interrupted_trials": sum(r["video_status"] == "interrupted" for r in rows)})
++    out.mkdir(parents=True, exist_ok=False)
++    write_csv(out / "analysis_trials.csv", results, IDENTITY + VIDEO + ("measurement_source", "video_verified"))
++    write_csv(out / "condition_summary.csv", summaries, list(summaries[0]))
++    write_csv(out / "survey_join_keys.csv", summaries, IDENTITY[:9])
++    (out / "EXPORT_README.txt").write_text(
++        "Only OBS-coded trials enter performance summaries; no auxiliary substitution.\n"
++        "RT uses completed trials only; timeouts retain observable selections.\n"
++        "First-selection error excludes trials with no observed first selection; its denominator is first_selection_n.\n"
++        "observed_selection_error_rate pools incorrect/total tab activations and is a different descriptive measure.\n"
++        "Repeated targets remain included and are flagged for any prespecified sensitivity analysis.\n"
++        "NASA-TLX is collected in Google Forms, outside this controller.\n"
++        "Join Forms results using participant code AND condition, not row order.\n"
++        "Missing video coding remains missing, not zero.\n", encoding="utf-8")
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("action", choices=("prepare", "export"))
++    parser.add_argument("run", type=Path)
++    parser.add_argument("--coding", type=Path)
++    parser.add_argument("--out", type=Path, required=True)
++    args = parser.parse_args()
++    try:
++        if args.action == "prepare": prepare(args.run, args.out)
++        else:
++            if args.coding is None: parser.error("export requires --coding")
++            export(args.run, args.coding, args.out)
++    except (OSError, ValueError, KeyError) as exc:
++        parser.exit(1, f"Encoding stopped: {exc}\n")
++    print(f"Created {args.out.resolve()}")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())

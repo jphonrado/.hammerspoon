@@ -1,0 +1,296 @@
+{
+  "created_wall_epoch": 1793194718,
+  "plan": [
+    {
+      "orientation": "H",
+      "taskOrder": [
+        "Content Set 1/content 1.2.html",
+        "Content Set 1/content 1.5.html",
+        "Content Set 1/content 1.8.html",
+        "Content Set 1/content 1.11.html",
+        "Content Set 1/content 1.14.html"
+      ],
+      "contentSet": "A",
+      "expectedTabCount": 6,
+      "name": "H-L",
+      "trials": [
+        {
+          "id": "T1",
+          "targetID": "P1",
+          "targetTitle": "Basketball Passing and Scoring",
+          "subject": "Basketball",
+          "audio": "A_P1.m4a",
+          "path": "Content Set 1/content 1.2.html"
+        },
+        {
+          "id": "T2",
+          "targetID": "P2",
+          "targetTitle": "Swimming Strokes and Relays",
+          "subject": "Swimming",
+          "audio": "A_P2.m4a",
+          "path": "Content Set 1/content 1.5.html"
+        },
+        {
+          "id": "T3",
+          "targetID": "P1",
+          "targetTitle": "Basketball Passing and Scoring",
+          "subject": "Basketball",
+          "audio": "A_P1.m4a",
+          "path": "Content Set 1/content 1.2.html"
+        },
+        {
+          "id": "T4",
+          "targetID": "P3",
+          "targetTitle": "Track Cycling Race Formats",
+          "subject": "Track Cycling",
+          "audio": "A_P3.m4a",
+          "path": "Content Set 1/content 1.8.html"
+        },
+        {
+          "id": "T5",
+          "targetID": "P4",
+          "targetTitle": "Field Hockey Scoring Rules",
+          "subject": "Field Hockey",
+          "audio": "A_P4.m4a",
+          "path": "Content Set 1/content 1.11.html"
+        },
+        {
+          "id": "T6",
+          "targetID": "P5",
+          "targetTitle": "Wrestling Grips and Scoring",
+          "subject": "Wrestling",
+          "audio": "A_P5.m4a",
+          "path": "Content Set 1/content 1.14.html"
+        }
+      ],
+      "topic": "Sports",
+      "tabLoad": "low"
+    },
+    {
+      "orientation": "H",
+      "taskOrder": [
+        "Content Set 2/content 2.2.html",
+        "Content Set 2/content 2.1.html",
+        "Content Set 2/content 2.3.html",
+        "Content Set 2/content 2.4.html",
+        "Content Set 2/content 2.6.html",
+        "Content Set 2/content 2.5.html",
+        "Content Set 2/content 2.7.html",
+        "Content Set 2/content 2.9.html",
+        "Content Set 2/content 2.8.html",
+        "Content Set 2/content 2.10.html",
+        "Content Set 2/content 2.12.html",
+        "Content Set 2/content 2.11.html",
+        "Content Set 2/content 2.13.html",
+        "Content Set 2/content 2.14.html",
+        "Content Set 2/content 2.15.html"
+      ],
+      "contentSet": "B",
+      "expectedTabCount": 16,
+      "name": "H-H",
+      "trials": [
+        {
+          "id": "T1",
+          "targetID": "P2",
+          "targetTitle": "Fennec Fox Desert Adaptations",
+          "subject": "Fennec Fox",
+          "audio": "B_P2.m4a",
+          "path": "Content Set 2/content 2.5.html"
+        },
+        {
+          "id": "T2",
+          "targetID": "P3",
+          "targetTitle": "Giant Panda Bamboo Diet",
+          "subject": "Giant Panda",
+          "audio": "B_P3.m4a",
+          "path": "Content Set 2/content 2.8.html"
+        },
+        {
+          "id": "T3",
+          "targetID": "P4",
+          "targetTitle": "Polar Bear Hunting From Ice",
+          "subject": "Polar Bear",
+          "audio": "B_P4.m4a",
+          "path": "Content Set 2/content 2.11.html"
+        },
+        {
+          "id": "T4",
+          "targetID": "P2",
+          "targetTitle": "Fennec Fox Desert Adaptations",
+          "subject": "Fennec Fox",
+          "audio": "B_P2.m4a",
+          "path": "Content Set 2/content 2.5.html"
+        },
+        {
+          "id": "T5",
+          "targetID": "P5",
+          "targetTitle": "Snow Leopard Mountain Adaptations",
+          "subject": "Snow Leopard",
+          "audio": "B_P5.m4a",
+          "path": "Content Set 2/content 2.14.html"
+        },
+        {
+          "id": "T6",
+          "targetID": "P1",
+          "targetTitle": "Red Panda Forest Life",
+          "subject": "Red Panda",
+          "audio": "B_P1.m4a",
+          "path": "Content Set 2/content 2.2.html"
+        }
+      ],
+      "topic": "Animals",
+      "tabLoad": "high"
+    },
+    {
+      "orientation": "V",
+      "taskOrder": [
+        "Content Set 3/content 3.2.html",
+        "Content Set 3/content 3.5.html",
+        "Content Set 3/content 3.8.html",
+        "Content Set 3/content 3.11.html",
+        "Content Set 3/content 3.14.html"
+      ],
+      "contentSet": "C",
+      "expectedTabCount": 6,
+      "name": "V-L",
+      "trials": [
+        {
+          "id": "T1",
+          "targetID": "P3",
+          "targetTitle": "Coral Reefs Support Marine Life",
+          "subject": "Coral Reefs",
+          "audio": "C_P3.m4a",
+          "path": "Content Set 3/content 3.8.html"
+        },
+        {
+          "id": "T2",
+          "targetID": "P4",
+          "targetTitle": "Mangroves Stabilize Coastal Sediment",
+          "subject": "Mangroves",
+          "audio": "C_P4.m4a",
+          "path": "Content Set 3/content 3.11.html"
+        },
+        {
+          "id": "T3",
+          "targetID": "P5",
+          "targetTitle": "Mountains Formation and Erosion",
+          "subject": "Mountains",
+          "audio": "C_P5.m4a",
+          "path": "Content Set 3/content 3.14.html"
+        },
+        {
+          "id": "T4",
+          "targetID": "P1",
+          "targetTitle": "Waterfalls Shape Rocky Landscapes",
+          "subject": "Waterfalls",
+          "audio": "C_P1.m4a",
+          "path": "Content Set 3/content 3.2.html"
+        },
+        {
+          "id": "T5",
+          "targetID": "P3",
+          "targetTitle": "Coral Reefs Support Marine Life",
+          "subject": "Coral Reefs",
+          "audio": "C_P3.m4a",
+          "path": "Content Set 3/content 3.8.html"
+        },
+        {
+          "id": "T6",
+          "targetID": "P2",
+          "targetTitle": "Volcanoes Lava and Landforms",
+          "subject": "Volcanoes",
+          "audio": "C_P2.m4a",
+          "path": "Content Set 3/content 3.5.html"
+        }
+      ],
+      "topic": "Nature",
+      "tabLoad": "low"
+    },
+    {
+      "orientation": "V",
+      "taskOrder": [
+        "Content Set 4/content 4.1.html",
+        "Content Set 4/content 4.2.html",
+        "Content Set 4/content 4.3.html",
+        "Content Set 4/content 4.4.html",
+        "Content Set 4/content 4.6.html",
+        "Content Set 4/content 4.5.html",
+        "Content Set 4/content 4.7.html",
+        "Content Set 4/content 4.8.html",
+        "Content Set 4/content 4.9.html",
+        "Content Set 4/content 4.10.html",
+        "Content Set 4/content 4.12.html",
+        "Content Set 4/content 4.11.html",
+        "Content Set 4/content 4.13.html",
+        "Content Set 4/content 4.15.html",
+        "Content Set 4/content 4.14.html"
+      ],
+      "contentSet": "D",
+      "expectedTabCount": 16,
+      "name": "V-H",
+      "trials": [
+        {
+          "id": "T1",
+          "targetID": "P4",
+          "targetTitle": "Mirrors Reflect Light",
+          "subject": "Mirrors",
+          "audio": "D_P4.m4a",
+          "path": "Content Set 4/content 4.11.html"
+        },
+        {
+          "id": "T2",
+          "targetID": "P5",
+          "targetTitle": "Optical Lenses Redirect Light",
+          "subject": "Optical Lenses",
+          "audio": "D_P5.m4a",
+          "path": "Content Set 4/content 4.14.html"
+        },
+        {
+          "id": "T3",
+          "targetID": "P1",
+          "targetTitle": "Gravity Mass and Attraction",
+          "subject": "Gravity",
+          "audio": "D_P1.m4a",
+          "path": "Content Set 4/content 4.2.html"
+        },
+        {
+          "id": "T4",
+          "targetID": "P2",
+          "targetTitle": "Light Waves and Visible Colors",
+          "subject": "Light Waves",
+          "audio": "D_P2.m4a",
+          "path": "Content Set 4/content 4.5.html"
+        },
+        {
+          "id": "T5",
+          "targetID": "P3",
+          "targetTitle": "Planets Orbits and Composition",
+          "subject": "Planets",
+          "audio": "D_P3.m4a",
+          "path": "Content Set 4/content 4.8.html"
+        },
+        {
+          "id": "T6",
+          "targetID": "P4",
+          "targetTitle": "Mirrors Reflect Light",
+          "subject": "Mirrors",
+          "audio": "D_P4.m4a",
+          "path": "Content Set 4/content 4.11.html"
+        }
+      ],
+      "topic": "Science",
+      "tabLoad": "high"
+    }
+  ],
+  "session_id": "RUN1",
+  "closed_wall_epoch": 1793194719,
+  "mode": "test",
+  "participant": "TEST001",
+  "schema_version": "1.0",
+  "status": "completed",
+  "versions": {
+    "controller": "test-build",
+    "materials": "hci2000-materials-2026-10-28"
+  },
+  "group": 1
+}

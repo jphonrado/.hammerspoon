@@ -1,0 +1,18 @@
+{
+  "baseline_commit": "44e1b48a62a53003ceae2a61db4e601a408359f4",
+  "purpose": "Intentional regression replay on the unpatched baseline; failures below demonstrate the old behavior. This is not the current verification result.",
+  "expected_before_failures": true,
+  "native_macos_tested": false,
+  "cases": [
+    {
+      "name": "trial timeout is 20 seconds from reveal, excluding the audio prompt",
+      "passed": false,
+      "error": "[string \"/workspace/scratch/a331770d76c2/orlando-click...\"]:11: Value: expected 20, got 60"
+    },
+    {
+      "name": "right and extra buttons preserve only the release of a pre-lock press",
+      "passed": false,
+      "error": "[string \"/workspace/scratch/a331770d76c2/orlando-click...\"]:11: Value: expected false, got true"
+    }
+  ]
+}

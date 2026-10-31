@@ -1,0 +1,214 @@
+{
+  "date": "2026-10-29",
+  "canonical_titles_preserved": true,
+  "local_html_unchanged": true,
+  "page_title_mismatches": [
+    {
+      "set": "A",
+      "target_id": null,
+      "path": "Content Set 1/content 1.1.html",
+      "canonical_group_title": "Archery Aiming and Accuracy",
+      "existing_local_html_title": "Archery Target Accuracy"
+    },
+    {
+      "set": "A",
+      "target_id": null,
+      "path": "Content Set 1/content 1.7.html",
+      "canonical_group_title": "Water Polo Passing and Scoring",
+      "existing_local_html_title": "Water Polo Team Play"
+    },
+    {
+      "set": "B",
+      "target_id": null,
+      "path": "Content Set 2/content 2.1.html",
+      "canonical_group_title": "Capybara Habitats Near Water",
+      "existing_local_html_title": "Capybara Life Near Water"
+    },
+    {
+      "set": "B",
+      "target_id": "P1",
+      "path": "Content Set 2/content 2.2.html",
+      "canonical_group_title": "Red Panda Habitats in Forests",
+      "existing_local_html_title": "Red Panda Forest Life"
+    },
+    {
+      "set": "B",
+      "target_id": null,
+      "path": "Content Set 2/content 2.3.html",
+      "canonical_group_title": "Meerkat Groups and Burrows",
+      "existing_local_html_title": "Meerkat Burrows and Warning Calls"
+    },
+    {
+      "set": "B",
+      "target_id": null,
+      "path": "Content Set 2/content 2.7.html",
+      "canonical_group_title": "Cheetah Speed and Hunting Skills",
+      "existing_local_html_title": "Cheetah Speed and Hunting"
+    },
+    {
+      "set": "B",
+      "target_id": "P3",
+      "path": "Content Set 2/content 2.8.html",
+      "canonical_group_title": "Giant Panda Diet and Habitats",
+      "existing_local_html_title": "Giant Panda Bamboo Diet"
+    },
+    {
+      "set": "B",
+      "target_id": null,
+      "path": "Content Set 2/content 2.9.html",
+      "canonical_group_title": "Orangutan Habitats in Trees",
+      "existing_local_html_title": "Orangutan Life in Trees"
+    },
+    {
+      "set": "C",
+      "target_id": null,
+      "path": "Content Set 3/content 3.1.html",
+      "canonical_group_title": "Rainforests and Canopy Wildlife",
+      "existing_local_html_title": "Rainforests Canopy and Forest Life"
+    },
+    {
+      "set": "C",
+      "target_id": "P1",
+      "path": "Content Set 3/content 3.2.html",
+      "canonical_group_title": "Waterfalls and Rock Erosion",
+      "existing_local_html_title": "Waterfalls Shape Rocky Landscapes"
+    },
+    {
+      "set": "C",
+      "target_id": "P2",
+      "path": "Content Set 3/content 3.5.html",
+      "canonical_group_title": "Volcanoes and Flowing Lava",
+      "existing_local_html_title": "Volcanoes Lava and Landforms"
+    },
+    {
+      "set": "C",
+      "target_id": null,
+      "path": "Content Set 3/content 3.7.html",
+      "canonical_group_title": "Caves and Underground Water",
+      "existing_local_html_title": "Caves Water and Rock"
+    },
+    {
+      "set": "C",
+      "target_id": null,
+      "path": "Content Set 3/content 3.9.html",
+      "canonical_group_title": "Glaciers and Changing Valleys",
+      "existing_local_html_title": "Glaciers Reshape Valleys"
+    },
+    {
+      "set": "C",
+      "target_id": null,
+      "path": "Content Set 3/content 3.10.html",
+      "canonical_group_title": "River Deltas and Sediment",
+      "existing_local_html_title": "River Deltas Sediment Deposits"
+    },
+    {
+      "set": "C",
+      "target_id": "P4",
+      "path": "Content Set 3/content 3.11.html",
+      "canonical_group_title": "Mangroves and Coastal Habitats",
+      "existing_local_html_title": "Mangroves Stabilize Coastal Sediment"
+    },
+    {
+      "set": "C",
+      "target_id": "P5",
+      "path": "Content Set 3/content 3.14.html",
+      "canonical_group_title": "Mountains and Erosion Patterns",
+      "existing_local_html_title": "Mountains Formation and Erosion"
+    },
+    {
+      "set": "C",
+      "target_id": null,
+      "path": "Content Set 3/content 3.15.html",
+      "canonical_group_title": "Estuaries and Coastal Waters",
+      "existing_local_html_title": "Estuaries Mix Freshwater and Seawater"
+    },
+    {
+      "set": "D",
+      "target_id": "P1",
+      "path": "Content Set 4/content 4.2.html",
+      "canonical_group_title": "Gravity Pulls Objects Together",
+      "existing_local_html_title": "Gravity Mass and Attraction"
+    },
+    {
+      "set": "D",
+      "target_id": null,
+      "path": "Content Set 4/content 4.4.html",
+      "canonical_group_title": "Solar Panels and Electricity",
+      "existing_local_html_title": "Solar Panels Generate Electricity"
+    },
+    {
+      "set": "D",
+      "target_id": "P3",
+      "path": "Content Set 4/content 4.8.html",
+      "canonical_group_title": "Planets and Their Composition",
+      "existing_local_html_title": "Planets Orbits and Composition"
+    },
+    {
+      "set": "D",
+      "target_id": null,
+      "path": "Content Set 4/content 4.9.html",
+      "canonical_group_title": "Levers and Their Pivot Points",
+      "existing_local_html_title": "Levers Force and Fulcrums"
+    },
+    {
+      "set": "D",
+      "target_id": "P4",
+      "path": "Content Set 4/content 4.11.html",
+      "canonical_group_title": "Mirrors and Light Reflection",
+      "existing_local_html_title": "Mirrors Reflect Light"
+    },
+    {
+      "set": "D",
+      "target_id": null,
+      "path": "Content Set 4/content 4.13.html",
+      "canonical_group_title": "Friction Between Moving Surfaces",
+      "existing_local_html_title": "Friction Resists Sliding Between Surfaces"
+    },
+    {
+      "set": "D",
+      "target_id": null,
+      "path": "Content Set 4/content 4.15.html",
+      "canonical_group_title": "Satellites and Their Orbits",
+      "existing_local_html_title": "Satellites Natural and Artificial"
+    }
+  ],
+  "target_aliases": {
+    "B": {
+      "P1": [
+        "Red Panda Forest Life"
+      ],
+      "P3": [
+        "Giant Panda Bamboo Diet"
+      ]
+    },
+    "C": {
+      "P1": [
+        "Waterfalls Shape Rocky Landscapes"
+      ],
+      "P2": [
+        "Volcanoes Lava and Landforms"
+      ],
+      "P4": [
+        "Mangroves Stabilize Coastal Sediment"
+      ],
+      "P5": [
+        "Mountains Formation and Erosion"
+      ]
+    },
+    "D": {
+      "P1": [
+        "Gravity Mass and Attraction"
+      ],
+      "P3": [
+        "Planets Orbits and Composition"
+      ],
+      "P4": [
+        "Mirrors Reflect Light"
+      ]
+    }
+  },
+  "alias_target_count": 9,
+  "ambiguous_exact_titles": 0,
+  "materials_definition_sha256": "d36b64ed53e939d04579b2240f0117a9819672a204caeb848c5b0cabf60521c7",
+  "use_one_title_version_consistently_for_main_study": true
+}

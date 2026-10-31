@@ -1,0 +1,843 @@
+diff --git a/DATA_DICTIONARY.md b/DATA_DICTIONARY.md
+index 24790d2..04a989d 100644
+--- a/DATA_DICTIONARY.md
++++ b/DATA_DICTIONARY.md
+@@ -144,3 +144,9 @@ snapshots, not additional participant observations.
+ `AUTO_NEXT_TRIAL_SCHEDULED` and `AUTO_TRIAL_START_REQUESTED` are auxiliary events. A block-level all-tabs-visible approval is not a new manual preflight for each trial. `checkpoint.json` records `auto_block_approval` and `auto_next_pending`; these do not authorize automatic resume after a crash/reload. Configured continuation includes ordinary timeouts, which still have no completed retrieval time.
+ 
+ Session provenance includes the current delivered recording hashes and a materials-definition fingerprint. The earlier source-manifest hash identifies its historical input, not a claim that all synced title edits match the old HTML. Trial identity retains the canonical target title; `observed_title` preserves the actual label detected. Only explicitly listed legacy aliases for that same target are accepted. Use a consistent title version during the main study. Study Start is LAST under the synced controller contract.
++
++## Mouse transition diagnostics (controller 2.2.1)
++
++The configured trial deadline is 20 seconds from software reveal (video supplies final onset). New events named `MOUSE_INPUT_TRACE` contain a bounded JSON `detail` object with button-event names, monotonic receipt times, native timestamps, pointer coordinates, click counts, window-under-pointer IDs and routing decisions: `pass`, `blocked`, or `pass_existing_release`. The capture is buffered in memory and written outside the timed interval to avoid per-click disk delay; a crash can lose an unflushed buffer. It does not count clicks as selections or guarantee every OS event was captured. `mouseClickDiagnostics=false` disables logging, not release-pair protection.
++
++The minimum outcome display hold remains 0.30 seconds. If a click is still held/queued, reset waits for its release up to a further two seconds, outside RT. The existing completed row remains valid if this later wait causes a pause; no second terminal row or replay is created. A held button before reveal produces an interruption with no started timing interval.
+diff --git a/README.md b/README.md
+index 6e3e9f4..a0e707a 100644
+--- a/README.md
++++ b/README.md
+@@ -1,7 +1,7 @@
+ # HCI2000 Hammerspoon study controller
+ 
+ Revised controller for **Effects of Browser Tab Orientation & Tab Load on Navigation Performance**.
+-Version **2.2.0**, audited 29 October 2026 against `implemented-hammerspoon` at `ed02f4b`. See [the Orlando audit](docs/ORLANDO_AUDIT_2026-10-29.md) and [encoding guide](docs/ENCODING.md).
++Version **2.2.1**, updated 29 October 2026 against `implemented-hammerspoon` at `44e1b48`. See [the click/20-second update](docs/CLICK_FIX.md). See [the Orlando audit](docs/ORLANDO_AUDIT_2026-10-29.md) and [encoding guide](docs/ENCODING.md).
+ 
+ ## What this folder is
+ 
+@@ -13,7 +13,7 @@ The controller masks/reveals Chrome's tab region, plays the group's current targ
+ 
+ The code was implemented and tested locally with Lua 5.4, simulated Hammerspoon APIs and real temporary record files. Exact test counts and source fingerprints are in `docs/LOCAL_CHECKS.json`.
+ 
+-The current local checks pass **96 Lua behavioral cases and all 10 Lua syntax checks** (12 model, 24 integration, 60 controller/loader), plus **15 Python encoding tests**. `docs/MILESTONES.md` tracks implementation versus native-device verification for 2A-4B.
++The current local checks pass **111 Lua behavioral cases and all 10 Lua syntax checks** (12 model, 24 integration, 75 controller/loader), plus **15 Python encoding tests**. `docs/MILESTONES.md` tracks implementation versus native-device verification for 2A-4B.
+ 
+ **The actual macOS/Chrome/OBS checks have not been run here.** Input permissions, audio decoding/playback, native tab geometry, mask coverage and captured video must pass `docs/MAC_CHECKLIST.md` on the study laptop. Main-study mode is disabled by default; test and pilot modes work without declaring those checks complete.
+ 
+@@ -99,7 +99,7 @@ interTrialDelaySeconds = 3.0,
+ autoAdvanceAfterTimeout = true,
+ ```
+ 
+-These are researcher settings, not participant controls. A completed automatic/manual acknowledgment or ordinary timeout starts a three-second masked countdown after the 0.30-second outcome hold. The next trial then resets and verifies Study Start, the pointer, and the bound window before playing its scheduled prompt. The first prompt of each block remains an explicit start.
++These are researcher settings, not participant controls. The trial limit is **20 seconds after mask disappearance**, excluding the prompt. A completed automatic/manual acknowledgment or ordinary timeout starts a three-second masked countdown after the minimum 0.30-second outcome hold and completion of the current mouse-button release. The next trial then resets and verifies Study Start, the pointer, and the bound window before playing its scheduled prompt. The first prompt of each block remains an explicit start.
+ 
+ Automatic mode requires the researcher to confirm once at block preparation that **all task tabs AND Study Start are visible without tab-list scrolling, collapsed sections, or hidden tabs**. The controller checks window/frame, neutral title, mask geometry, and pointer; it does not prove tab order, exact count, panel width, visibility, or OBS status automatically. If scrolling is needed, choose **Manual trials** and reset the viewport before each trial. No unvalidated scrolling automation is claimed. Do not change geometry or reduce tab size merely to obtain automatic mode outside the frozen study settings.
+ 
+@@ -114,7 +114,7 @@ Keep preparation and researcher answer sheets out of the participant's view. Per
+ 3. Enter **Setup** (`Ctrl+Alt+Cmd+S`). Save the study window/frame with **W**, common pointer with **C**, and H/V mask corners with **H**/**V** as needed. Keep preparation outside the participant's view. Recalibrate after display/window changes.
+ 4. Press **A** with the same modifiers. Confirm actual tab count/order, orientation, panel width, aids, starting viewport and OBS. Then choose **All tabs visible** for automatic block flow, or **Manual trials** if scrolling/reset checks are needed. This choice records the scope of the approval accurately.
+ 5. Press **Return** with the modifiers to start the first trial. The controller selects the last neutral tab and verifies its title, frame and pointer before playing the prompt. Tabs stay masked/input locked until audio completion and the configured reveal delay.
+-6. When the participant selects the correct target, completion is recorded automatically. The correct page remains visible for 0.30 seconds for OBS, then the mask returns and the next prompt begins after a three-second countdown. **Do not press S/A/Return between ordinary automatic trials.** Wrong selections do not end a trial. **.** remains a manual completion acknowledgment if detection is unavailable; video supplies the final endpoint.
++6. When the participant selects the correct target, completion is recorded automatically. The correct page remains visible for at least 0.30 seconds for OBS; its click release is delivered before reset, then the mask returns and the next prompt begins after a three-second countdown. **Do not press S/A/Return between ordinary automatic trials.** Wrong selections do not end a trial. **.** remains a manual completion acknowledgment if detection is unavailable; video supplies the final endpoint.
+ 7. **P** pauses/cancels the next prompt and **Esc** provides emergency release (both with modifiers). A break during an exposed trial documents/consumes it without replay. Resume through **S → A → Return**, approving the current setup again. In manual/scrolling mode, use this sequence between trials to restore the tab-list viewport.
+ 8. After six scheduled entries, the controller stops for that condition's TLX ratings. Press **N** after the ratings to prepare the next block; approve and start it explicitly. After the final block, **N** closes the session. Complete the weighting/interview under the study protocol.
+ 9. Retain original logs and OBS files. Code final measures in a separate copy of `video_coding.csv`; compare and document discrepancies with auxiliary records. No automatic estimate becomes a final measurement without video review.
+@@ -138,7 +138,7 @@ All letter/key shortcuts below use **Ctrl+Alt+Cmd** together. On macOS, Alt is O
+ | T | Show current participant/group/block/trial/phase |
+ | E | End session; exposed/interrupted sessions retain their review guard |
+ 
+-During input lock, use keyboard shortcuts: mouse clicks, including the HCI menu, are intentionally blocked. Esc with the modifiers is always the emergency release. The input-lock watchdog also stops the procedure rather than silently allowing a trial to continue.
++During input lock, use keyboard shortcuts: new mouse clicks, including the HCI menu, are intentionally blocked. A release matching a press Chrome already received passes through so its click cannot get stuck. Keep click buttons released until the tabs are revealed; participants can keep holding the mouse itself. Esc with the modifiers is always the emergency release. The input-lock watchdog also stops the procedure rather than silently allowing a trial to continue.
+ 
+ ## Breaks, failures and restarts
+ 
+@@ -215,3 +215,7 @@ These references describe APIs; they do not establish that the group's hardware/
+ Follow [docs/ENCODING.md](docs/ENCODING.md) to prepare an OBS coding copy and export checked trial/condition CSVs. The exporter validates frames, FPS, counts and identities, preserves zero versus missing, and never substitutes automatic estimates. `survey_join_keys.csv` provides participant code plus condition for linking the separate Google Forms NASA-TLX results. Block order is not condition. No form, questionnaire UI, workload scoring or audio is changed by this audit.
+ 
+ Encoding test command: `python -m unittest discover -s tests -p "test_*.py"`.
++
++## Click transition fix (2.2.1)
++
++The protected-phase gate now preserves a release belonging to a press that Chrome already received. Remasking and pointer/neutral reset wait for that release, bounded by a two-second post-outcome safety wait; retrieval timing has already stopped. Pre-reveal held buttons stop the exposed trial rather than leaking a partial click into it. Setup activates Chrome and reveal checks the active application as well as the study window. Buffered `MOUSE_INPUT_TRACE` events distinguish passed clicks, protected-phase blocked clicks, and passed existing releases; they are diagnostics, not tab-selection counts. `mouseClickDiagnostics=false` disables trace logging while retaining matching-release protection. See [CLICK_FIX.md](docs/CLICK_FIX.md) for the Mac reproduction procedure.
+diff --git a/docs/CLICK_FIX.md b/docs/CLICK_FIX.md
+new file mode 100644
+index 0000000..73600a4
+--- /dev/null
++++ b/docs/CLICK_FIX.md
+@@ -0,0 +1,90 @@
++# 20-second deadline and intermittent-click investigation
++
++29 October 2026. Baseline: `implemented-hammerspoon` at
++`44e1b48a62a53003ceae2a61db4e601a408359f4`. Patched controller: **2.2.1**.
++
++## Deadline
++
++`study/config.lua` now sets `timeoutSeconds = 20`. The limit runs from mask
++disappearance/software reveal, not from audio playback. The checked GitHub
++baseline still contained 60 seconds; the requested final value is 20 regardless
++of whether the study Mac's local copy had already been edited to 30.
++Timeouts remain incomplete, with no completed retrieval time. Normal automatic
++within-block progression is retained. NASA-TLX remains in Google Forms.
++
++## What was found
++
++The old `lock()` event callback returned `true` for every mouse event, including
++mouse-up. `finish()` installed that lock as soon as it detected the correct tab.
++If a tab activates on the down half of a click, the release half can therefore
++be swallowed by the new lock. Chrome has received a down without its matching
++up, which is a plausible explanation for stuck/drag-like or extra-click behavior.
++Pointer/neutral reset could also occur while that click was still held.
++
++This controller-level fault is reproduced with simulated events: on the exact
++baseline, a matching pre-lock release is blocked. The same regression now passes.
++`CLICK_REPRO_BEFORE.json` preserves the intentionally failing baseline replay.
++**This does not prove it is the only cause of the reported Mac symptom.** Actual
++Chrome/OS behavior and the user's hardware have not been reproduced here.
++
++## Changes
++
++- Preserve exactly the release of a button press Chrome already received.
++  Block new presses, pointer motion, dragging and scrolling during protected phases.
++- Track passed downs as well as physical button state, so a release queued during
++  a title/log callback is still allowed. Reuse an existing gate rather than
++  treating a masked held press as a new pre-lock click.
++- After the minimum 0.30-second target display hold, wait for the existing click
++  to finish before remasking, neutral reset or pointer reset. This wait is
++  bounded by a further two seconds, occurs after the measured endpoint, and
++  never changes the saved RT. An expired wait pauses without duplicating the
++  completed outcome or replaying the prompt.
++- Reject a held button before reset or reveal. Before exposure, the entry stays
++  available; after the prompt may have been heard, interruption consumes it under
++  the existing no-replay rule. Do not press a mouse button until reveal; holding
++  the mouse itself is fine. No variable audio-to-reveal waiting is introduced.
++- Activate Chrome during Setup and verify both the selected window and active
++  application before starting/revealing. No synthetic activation click is sent.
++- Buffer button diagnostics in memory and write `MOUSE_INPUT_TRACE` events after
++  the timed interval. The trace includes pass/block decisions, point, native
++  timestamp, click count and window ID. It is not the selection-count measure.
++  A crash can lose an unflushed buffer. `mouseClickDiagnostics=false` disables
++  trace logging while preserving the passive monitor and release-pair fix.
++
++## Verify on the study Mac
++
++Use test/pilot mode and save OBS. For **all four H/V × low/high configurations**:
++
++1. Complete several consecutive automatic trials using one ordinary click per
++   requested tab. Check the first click after reveal and after a previous target.
++2. Deliberately hold the correct-tab button beyond detection for about half a
++   second, then release. The release should finish normally; no drag, extra tab
++   activation or second click should be needed. Reset must wait for release.
++3. Check wrong → correct and wrong → neutral → correct. Counts still represent
++   activations, not the number of mouse down/up events.
++4. Deliberately press under the mask and release before reveal: neither half
++   should activate a tab. A fresh first click after reveal should work.
++5. Deliberately hold a button through reveal: the trial should stop, remain
++   untimed, and not replay the exposed cue. This is a controlled test of failure
++   handling, not a scored navigation trial.
++6. Leave the mouse untouched after reveal. Timeout should occur at about 20
++   seconds in OBS and have blank completed RT in the logs.
++7. Confirm Chrome stays active and that both masks disappear completely. If a
++   single click still fails, retain the OBS clip, the run folder, condition,
++   trial ID and `MOUSE_INPUT_TRACE` rows. They distinguish input blocking,
++   inactive-window behavior and a click that arrived without a tab activation.
++
++Keep the actual browser/display settings fixed during this verification. Do not
++introduce double-clicking as a participant instruction to work around the bug.
++
++## Local checks
++
++111 Lua behavioral cases (12 model, 24 storage/material integration, 75 adapter),
++10 Lua syntax checks, and 15 Python encoding cases pass. Cases cover matching
++left/right/extra-button releases, queued release delivery, held clicks, next-trial
++single clicks, premature actions, focus, diagnostics-off behavior and the exact
++20-second deadline. These are software simulations; native validation is pending.
++
++API references: [mouse-button state and event taps](https://www.hammerspoon.org/docs/hs.eventtap.html),
++[button-event properties](https://www.hammerspoon.org/docs/hs.eventtap.event.html),
++[active application](https://www.hammerspoon.org/docs/hs.application.html#isFrontmost).
+diff --git a/docs/CLICK_REPRO_BEFORE.json b/docs/CLICK_REPRO_BEFORE.json
+new file mode 100644
+index 0000000..e5254d6
+--- /dev/null
++++ b/docs/CLICK_REPRO_BEFORE.json
+@@ -0,0 +1,18 @@
++{
++  "baseline_commit": "44e1b48a62a53003ceae2a61db4e601a408359f4",
++  "purpose": "Intentional regression replay on the unpatched baseline; failures below demonstrate the old behavior. This is not the current verification result.",
++  "expected_before_failures": true,
++  "native_macos_tested": false,
++  "cases": [
++    {
++      "name": "trial timeout is 20 seconds from reveal, excluding the audio prompt",
++      "passed": false,
++      "error": "[string \"/workspace/scratch/a331770d76c2/orlando-click...\"]:11: Value: expected 20, got 60"
++    },
++    {
++      "name": "right and extra buttons preserve only the release of a pre-lock press",
++      "passed": false,
++      "error": "[string \"/workspace/scratch/a331770d76c2/orlando-click...\"]:11: Value: expected false, got true"
++    }
++  ]
++}
+diff --git a/docs/LOCAL_CHECKS.json b/docs/LOCAL_CHECKS.json
+index 2a85ef8..e2b1283 100644
+--- a/docs/LOCAL_CHECKS.json
++++ b/docs/LOCAL_CHECKS.json
+@@ -1,7 +1,7 @@
+ {
+   "passed": true,
+   "runtime": "Lua 5.4 via development-only Python lupa",
+-  "package_root": "/workspace/scratch/a331770d76c2/orlando-implementation",
++  "package_root": "/workspace/scratch/a331770d76c2/orlando-click-fix",
+   "syntax": [
+     {
+       "file": "init.lua",
+@@ -190,7 +190,7 @@
+     {
+       "suite": "controller",
+       "passed": true,
+-      "case_count": 60,
++      "case_count": 75,
+       "cases": [
+         {
+           "name": "adapter blocks navigation in ready and outcome hold",
+@@ -431,11 +431,71 @@
+         {
+           "name": "observed polling gaps are recorded rather than claiming 50ms precision",
+           "passed": true
++        },
++        {
++          "name": "trial timeout is 20 seconds from reveal, excluding the audio prompt",
++          "passed": true
++        },
++        {
++          "name": "target mouse-down followed by completion still delivers its mouse-up to Chrome",
++          "passed": true
++        },
++        {
++          "name": "right and extra buttons preserve only the release of a pre-lock press",
++          "passed": true
++        },
++        {
++          "name": "new masked clicks remain blocked across repeated lock calls",
++          "passed": true
++        },
++        {
++          "name": "held target click delays reset until release without extending retrieval time",
++          "passed": true
++        },
++        {
++          "name": "unreleased outcome click stops safely without a second outcome or replay",
++          "passed": true
++        },
++        {
++          "name": "a held button before reset retains the unexposed trial",
++          "passed": true
++        },
++        {
++          "name": "premature held click cannot leak into the timed trial at reveal",
++          "passed": true
++        },
++        {
++          "name": "a fully blocked pre-reveal click does not eat the first real click",
++          "passed": true
++        },
++        {
++          "name": "Setup activates Chrome without a synthetic click and checks app activity",
++          "passed": true
++        },
++        {
++          "name": "click trace is diagnostic only and does not count clicks as selections",
++          "passed": true
++        },
++        {
++          "name": "queued release is preserved even when the instantaneous physical poll is already up",
++          "passed": true
++        },
++        {
++          "name": "matching-release protection also works with diagnostic logging disabled",
++          "passed": true
++        },
++        {
++          "name": "a single click completes the next automatic trial after releasing the prior click",
++          "passed": true
++        },
++        {
++          "name": "pause with a held click does not leave stale button history on resume",
++          "passed": true
+         }
+       ]
+     }
+   ],
+-  "exported_simulated_examples": "/workspace/scratch/a331770d76c2/orlando-navigation-simulated",
++  "exported_simulated_examples": null,
+   "native_macos_tested": false,
+   "limitations": [
+     "No real Chrome tabs, Hammerspoon APIs, input hooks or OBS capture were exercised.",
+@@ -444,12 +504,12 @@
+   "source_hashes": {
+     "init.lua": "f467432bf90edcf3a570f57d916773896c13ace2e818a24064fc90916fee4855",
+     "study/allocation.lua": "6a9078207e7d1c8e89d8128ad2764d98e42991e95eae61712b25a753d5055f81",
+-    "study/config.lua": "8ba21b565bea2758f7b8d2033fe33a8c351afecae91226f417451a48e76b1640",
+-    "study/controller.lua": "e9b4cc930eeea393eee77ec253765734ad6004e3680d760cc428cb9a1ea00153",
++    "study/config.lua": "8ea2b24c7a5ad410d646cb3397055951548f1ae30a36b0f6de5f404ce16fe172",
++    "study/controller.lua": "c0f4c408db6ebf5a8bbd7a9d36ab04c6534079c49e060233d0a57181e89ce0e9",
+     "study/materials.lua": "fbc7a3ae2a041528463221f7fb8a98dca82b2dd17d1b2aefcafc8f3ac8ffd01a",
+     "study/model.lua": "b034b4c9211d2a71d0fe76c462b7b176217640cf668d67d4a7bda8166a2fde10",
+     "study/storage.lua": "f2032830b225ac9eb6d628056d7e03cb136e0cce5a9c7de67a07a4661c94c9cf",
+-    "tests/controller_spec.lua": "1c7ab2e6ba72fa7dec3174376983246b24673f5c2c9ac140c8ecba5b9610db7b",
++    "tests/controller_spec.lua": "f572c83294456620f0ec27a2c7d21d2a88d7d89716d67155aa94217e9bddcc09",
+     "tests/integration_spec.lua": "c066f61022bfa836fa0f7ff594546e084617fcd054db59927c64045ababc7ce4",
+     "tests/model_spec.lua": "a95a8b11422a6113b4bd158798f17ce88a3f22b945e2309f54483fd6ff30cd7d"
+   }
+diff --git a/docs/MAC_CHECKLIST.md b/docs/MAC_CHECKLIST.md
+index 1d5073d..6b90ffd 100644
+--- a/docs/MAC_CHECKLIST.md
++++ b/docs/MAC_CHECKLIST.md
+@@ -21,7 +21,11 @@ Recording filenames/session IDs: __________
+ - [ ] Mask disappearance, mouse pointer, target-active state and prompt audio are clear.
+ - [ ] Automatic completion leaves a recognizable correct-target frame before masking.
+ - [ ] Test correct; wrong-correct; wrong-neutral-correct; already-active click; rapid wrong-correct.
+-- [ ] Test timeout with no selection; timeout after errors; manual completion.
++- [ ] Test timeout with no selection; timeout after errors; manual completion. The deadline is 20 seconds AFTER reveal, excluding audio.
++- [ ] Use ONE click per tab in H-L/H-H/V-L/V-H over several consecutive trials; confirm no lost first clicks.
++- [ ] Hold the correct-target button through detection, then release: Chrome receives that release before mask/reset; no stuck drag or extra selection follows.
++- [ ] Check buffered MOUSE_INPUT_TRACE against OBS (pass, blocked, pass_existing_release), including a queued release and the first click of the next trial.
++- [ ] Hold a button before reveal: controller stops without leaking a partial click into a timed trial; already exposed prompt is not replayed.
+ - [ ] A second coder checks the same frames/counts; differences are resolved and noted.
+ - [ ] Automatic/video disagreements remain documented; estimates are not copied as final measurements.
+ - [ ] Check accessibility title notifications and poll-only fallback; compare rapid wrong-neutral-correct transitions to OBS.
+diff --git a/docs/MILESTONES.md b/docs/MILESTONES.md
+index 00f9fd1..395075c 100644
+--- a/docs/MILESTONES.md
++++ b/docs/MILESTONES.md
+@@ -13,11 +13,11 @@ Updated 29 October 2026. Original issue numbers are 2 (measurement), 3 (controll
+ 
+ ## Local evidence
+ 
+-`LOCAL_CHECKS.json` records **10/10 Lua syntax checks** and **96 passing Lua behavioral cases** plus **15 Python encoding tests**:
++`LOCAL_CHECKS.json` records **10/10 Lua syntax checks** and **111 passing Lua behavioral cases** plus **15 Python encoding tests**:
+ 
+ - 12 pure lifecycle cases.
+ - 24 storage/material/allocation integration cases using real temporary files.
+-- 60 Mac-adapter/loader cases using simulated Hammerspoon APIs.
++- 75 Mac-adapter/loader cases using simulated Hammerspoon APIs.
+ 
+ The adapter checks include all four groups' complete 24-entry flows, stale-mask rejection, session gates, no renewed lock after failed logging, interruption handling, completed-session guards, exception cleanup and shutdown-hook chaining. The separate model/storage integration also verifies each group and the 16-slot allocation. These are simulations, not participant observations or native-device validation.
+ 
+@@ -34,3 +34,7 @@ Version2.1.0 restores three-second automatic progression after normal completion
+ ## Orlando audit, version 2.2.0
+ 
+ Audited implemented-hammerspoon at ed02f4b. Fixed timeout/interruption classification, reveal/endpoint disk-latency contamination, unavailable-count handling, and added optional accessibility observations with polling fallback. Added repeat/position/count metadata and a checked OBS encoding/export tool. NASA-TLX remains in Google Forms; only participant/condition join keys are exported. See ORLANDO_AUDIT_2026-10-29.md and ENCODING.md. Native Mac verification remains NOT RUN.
++
++## Single-click transition and 20-second deadline, version 2.2.1
++
++Baseline: implemented-hammerspoon at 44e1b48. Timeout is now 20 seconds from reveal. A pre-lock click retains its matching release; queued releases are tracked even when a physical-button poll is already up. Neutral/pointer reset waits for release outside RT, and held pre-reveal buttons interrupt without replay. Chrome activity and buffered click traces support native diagnosis. Two targeted regression replays fail on the old baseline and all current cases pass. Native reproduction/validation remains NOT RUN; see CLICK_FIX.md.
+diff --git a/study/config.lua b/study/config.lua
+index aa3c4b3..a951a57 100644
+--- a/study/config.lua
++++ b/study/config.lua
+@@ -1,10 +1,12 @@
+ -- Researcher settings. No Python or browser extension is required.
+ return {
+-  version = "2.2.0",
++  version = "2.2.1",
+   chromeAppName = "Google Chrome",
+   neutralTitle = "Study Start",
+   postPromptDelaySeconds = 0.40,
+-  timeoutSeconds = 60,
++  timeoutSeconds = 20,
++  mouseReleaseWaitSeconds = 2.0, -- After outcome only; never added to retrieval time.
++  mouseClickDiagnostics = true, -- Buffer button events; write outside the timed interval.
+   pollIntervalSeconds = 0.05,
+   pollGapWarningSeconds = 0.20, -- Flag delayed observations for OBS review.
+   accessibilityNotifications = true, -- Best effort, with title polling as backup.
+diff --git a/study/controller.lua b/study/controller.lua
+index bfd1a85..fa0dcb0 100644
+--- a/study/controller.lua
++++ b/study/controller.lua
+@@ -112,6 +112,7 @@ function M:cancelTimers()
+     local observer=self.titleObserver;self.titleObserver=nil
+     pcall(function()observer:stop()end)
+   end
++  if self.clickTraceTap then self.clickTraceTap:stop();self.clickTraceTap=nil end
+ end
+ function M:after(key,delay,fn)
+   if self.timers[key] then self.timers[key]:stop() end
+@@ -143,24 +144,118 @@ function M:validWindow(requireForeground)
+   if requireForeground then
+     local front=self.hs.window.frontmostWindow()
+     if not front or front:id()~=self.windowID then return nil,"Study window lost focus" end
++    local app=win:application()
++    if not app:isFrontmost() then return nil,"Chrome is not the active application; activate it in Setup" end
+   end
+   return win
+ end
+ function M:unlock()
+   if self.mouseTap then self.mouseTap:stop();self.mouseTap=nil end
++  self.passMouseUps=nil
++  -- Emergency/Setup releases input completely. A later natural mouse-up may
++  -- arrive with no observer installed; do not carry its old down into a new gate.
++  if not self.clickTraceTap then self.mousePassedDown=nil end
+   if self.timers.lock then self.timers.lock:stop();self.timers.lock=nil end
+ end
++function M:mouseButtonsDown()
++  local buttons=self.hs.eventtap.checkMouseButtons()
++  for _,pressed in pairs(buttons) do if pressed==true then return true,buttons end end
++  return false,buttons
++end
++function M:traceMouse(event,decision)
++  if not self.cfg.mouseClickDiagnostics then return end
++  local t=self.hs.eventtap.event.types
++  local typ=event:getType()
++  local name
++  for _,key in ipairs({"leftMouseDown","leftMouseUp","rightMouseDown","rightMouseUp","otherMouseDown","otherMouseUp"}) do
++    if typ==t[key] then name=key;break end
++  end
++  if not name then return end
++  self.mouseTrace=self.mouseTrace or {}
++  if #self.mouseTrace>=128 then self.mouseTraceDropped=(self.mouseTraceDropped or 0)+1;return end
++  local p=event:location()
++  local properties=self.hs.eventtap.event.properties
++  self.mouseTrace[#self.mouseTrace+1]={event=name,decision=decision,
++    phase=self.model and self.model.phase or "NO_SESSION",monotonic_s=self:now(),
++    x=p.x,y=p.y,click_count=event:getProperty(properties.mouseEventClickState),
++    button=event:getProperty(properties.mouseEventButtonNumber),
++    window_under_pointer=event:getProperty(properties.mouseEventWindowUnderMousePointer),
++    event_monotonic_ns=event:timestamp()}
++end
++function M:flushMouseTrace(record)
++  if not self.mouseTrace or #self.mouseTrace==0 then return true end
++  local extra={detail={events=self.mouseTrace,dropped=self.mouseTraceDropped or 0},observation_source="eventtap"}
++  if record then
++    local b=self.meta.plan[record.block_index]
++    extra.block=record.block_index;extra.condition=record.condition;extra.content_set=record.content_set
++    extra.orientation=b.orientation;extra.tab_load=b.tabLoad;extra.trial=record.trial_id
++    extra.target_id=record.target_id;extra.target_title=record.target_title
++  end
++  local ok=self:event("MOUSE_INPUT_TRACE",extra)
++  if ok then self.mouseTrace={};self.mouseTraceDropped=0 end
++  return ok
++end
++function M:startClickTrace()
++  local t=self.hs.eventtap.event.types
++  self.mousePassedDown={}
++  self.clickTraceTap=self.hs.eventtap.new({t.leftMouseDown,t.leftMouseUp,t.rightMouseDown,t.rightMouseUp,t.otherMouseDown,t.otherMouseUp},
++    function(event) return self:guard(function()
++      if self.model and self.model.phase=="RUNNING" then
++        local typ=event:getType()
++        local button=event:getProperty(self.hs.eventtap.event.properties.mouseEventButtonNumber)
++        if typ==t.leftMouseDown or typ==t.rightMouseDown or typ==t.otherMouseDown then
++          self.mousePassedDown[button]=true
++        else self.mousePassedDown[button]=nil end
++        self:traceMouse(event,"pass")
++      end
++      return false -- observe only; never generate or consume participant clicks
++    end) end)
++  self.clickTraceTap:start()
++  return self.clickTraceTap:isEnabled()
++end
+ function M:lock()
+-  self:unlock()
+-  local types=self.hs.eventtap.event.types
+-  local events={}
+-  for _,key in ipairs({"leftMouseDown","leftMouseUp","rightMouseDown","rightMouseUp",
+-    "otherMouseDown","otherMouseUp","mouseMoved","leftMouseDragged",
+-    "rightMouseDragged","otherMouseDragged","scrollWheel"}) do
+-    if types[key] then events[#events+1]=types[key] end
+-  end
+-  self.mouseTap=self.hs.eventtap.new(events,function() return true end)
+-  self.mouseTap:start()
++  -- Retain an existing gate: recreating it while a blocked button is held would
++  -- misclassify its eventual release as belonging to a click Chrome received.
++  if not self.mouseTap then
++    local types=self.hs.eventtap.event.types
++    local _,buttons=self:mouseButtonsDown()
++    self.passMouseUps={}
++    for index,pressed in pairs(buttons) do
++      if type(index)=="number" and pressed then self.passMouseUps[index-1]=true end
++    end
++    -- Named aliases are documented too; keep them for older/native variants.
++    for name,button in pairs({left=0,right=1,middle=2}) do
++      if buttons[name] then self.passMouseUps[button]=true end
++    end
++    -- A physical release can be queued while title/disk callbacks run. Retain
++    -- any down our running monitor passed, even if the instantaneous poll is up.
++    for button in pairs(self.mousePassedDown or {}) do self.passMouseUps[button]=true end
++    local events={}
++    for _,key in ipairs({"leftMouseDown","leftMouseUp","rightMouseDown","rightMouseUp",
++      "otherMouseDown","otherMouseUp","mouseMoved","leftMouseDragged",
++      "rightMouseDragged","otherMouseDragged","scrollWheel"}) do
++      if types[key] then events[#events+1]=types[key] end
++    end
++    self.mouseTap=self.hs.eventtap.new(events,function(event) return self:guard(function()
++      local typ,button=event:getType(),nil
++      if typ==types.leftMouseUp then button=0
++      elseif typ==types.rightMouseUp then button=1
++      elseif typ==types.otherMouseUp then
++        button=event:getProperty(self.hs.eventtap.event.properties.mouseEventButtonNumber)
++      end
++      -- A target can activate on mouse-down. Its matching mouse-up must reach
++      -- Chrome even though protection has already resumed after completion.
++      if button~=nil and self.passMouseUps[button] then
++        self.passMouseUps[button]=nil
++        if self.mousePassedDown then self.mousePassedDown[button]=nil end
++        self:traceMouse(event,"pass_existing_release")
++        return false
++      end
++      self:traceMouse(event,"blocked")
++      return true
++    end) end)
++    self.mouseTap:start()
++  end
+   if self.mouseTap.isEnabled and not self.mouseTap:isEnabled() then
+     self:unlock(); return nil,"Mouse lock unavailable: check Accessibility/Input Monitoring"
+   end
+@@ -340,6 +435,7 @@ function M:approveSetup()
+   end
+   local ok,why=self.model:ready();if not ok then return self:notice(why) end
+   self.setupApproved=true
++  win:application():activate(false)
+   win:focus()
+   local masked,maskErr=self:showMask()
+   if not masked then self.model:resetPreflight();self.setupApproved=false;return self:notice(maskErr) end
+@@ -411,6 +507,7 @@ function M:startTrial(automatic)
+   if self.model.phase~="READY" or not self.setupApproved then return self:notice("Enter Setup and approve this trial first") end
+   local win,err=self:validWindow(true)
+   if not win then return self:emergency(err) end
++  if self:mouseButtonsDown() then return self:emergency("Release mouse buttons before starting/resetting the trial") end
+   self:cancelTimers()
+   local ok,why=self.model:prepare();if not ok then return self:notice(why) end
+   self.setupApproved=false
+@@ -437,6 +534,7 @@ function M:startTrial(automatic)
+       self.lastTitle=self.cfg.neutralTitle
+       self.aux={selections=0,incorrect=0,first=nil,pages={},maxPollGap=0}
+       self.detectionMode=nil;self.hideReturnedTime=nil;self.lastPollTime=nil
++      self.mouseTrace={};self.mouseTraceDropped=0
+       local detail="Neutral title/frame/pointer checked; "..(automatic==true
+         and "native layout relies on retained all-tabs-visible block approval"
+         or "native layout manually approved before this start")
+@@ -489,6 +587,10 @@ function M:reveal()
+   if not self.mouseTap or (self.mouseTap.isEnabled and not self.mouseTap:isEnabled()) then
+     return self:emergency("Input lock was lost before reveal")
+   end
++  if self:mouseButtonsDown() or next(self.passMouseUps or {})~=nil then
++    return self:emergency("Mouse button held before reveal; exposed prompt will not be replayed")
++  end
++  if not self:startClickTrace() then return self:emergency("Click diagnostic event tap failed to start") end
+   self.lastTitle=self.cfg.neutralTitle -- Known baseline established BEFORE input release.
+   self:armTitleObserver(win)
+   if self.fatal then return end
+@@ -572,6 +674,7 @@ function M:observeTitle(source)
+ end
+ function M:recordOutcome(record,source,endpoint)
+   if not record or not self.store then return true end
++  if not self:flushMouseTrace(record) then return false end
+   local b=self.meta.plan[record.block_index]
+   local row=copy(record)
+   row.block=record.block_index;row.trial=record.trial_id
+@@ -624,19 +727,29 @@ function M:finish(status,endpoint)
+   self:event("TRIAL_OUTCOME",{detail=status});if self.fatal then return end
+   if not self:checkpoint() then return end
+   local locked,err=self:lock();if not locked then return self:emergency(err) end
+-  -- Retain the completed page for OBS, excluding this hold from the endpoint.
+-  self:after("outcome",self.cfg.outcomeHoldSeconds,function()
+-    local masked,why=self:showMask()
+-    if not masked then return self:emergency(why) end
+-    self.model:settleOutcome();self.setupApproved=false;self.revealTime=nil
+-    if self.model.phase=="BLOCK_COMPLETE" then self.autoBlockApproval=nil end
+-    if not self:checkpoint() then return end
+-    if self.model.phase=="BLOCK_COMPLETE" then
+-      self:notice("Block finished. Collect workload ratings, then use Next block.")
+-    elseif not self:scheduleNextTrial(status) then
+-      self:notice("Trial finished. Enter Setup to reset viewport and approve the next trial.")
+-    end
+-  end)
++  -- Complete the existing click before remasking/resetting. New presses/motion
++  -- stay blocked, and the release wait is outside the recorded RT interval.
++  local releaseDeadline=self:now()+self.cfg.outcomeHoldSeconds+self.cfg.mouseReleaseWaitSeconds
++  self:after("outcome",self.cfg.outcomeHoldSeconds,function()self:settleAfterMouseRelease(status,releaseDeadline)end)
++end
++function M:settleAfterMouseRelease(status,deadline)
++  if self.fatal or not self.model or self.model.phase~="OUTCOME" then return end
++  if self:mouseButtonsDown() or next(self.passMouseUps or {})~=nil then
++    if self:now()>=deadline then return self:emergency("Mouse button did not release after outcome; inspect click trace") end
++    self:after("outcome",0.02,function()self:settleAfterMouseRelease(status,deadline)end)
++    return
++  end
++  if not self:flushMouseTrace(self.model.currentRecord) then return end
++  local masked,why=self:showMask()
++  if not masked then return self:emergency(why) end
++  self.model:settleOutcome();self.setupApproved=false;self.revealTime=nil
++  if self.model.phase=="BLOCK_COMPLETE" then self.autoBlockApproval=nil end
++  if not self:checkpoint() then return end
++  if self.model.phase=="BLOCK_COMPLETE" then
++    self:notice("Block finished. Collect workload ratings, then use Next block.")
++  elseif not self:scheduleNextTrial(status) then
++    self:notice("Trial finished. Enter Setup to reset viewport and approve the next trial.")
++  end
+ end
+ function M:emergency(reason)
+   local endpoint=self:now()
+diff --git a/tests/controller_spec.lua b/tests/controller_spec.lua
+index 77a5b3f..a531714 100644
+--- a/tests/controller_spec.lua
++++ b/tests/controller_spec.lua
+@@ -18,7 +18,7 @@ local function test(name, body)
+ end
+ 
+ local function fixture(group)
+-    local env = {time = 10, timers = {}, title = "Study Start", notices = {},
++    local env = {time = 10, timers = {}, title = "Study Start", notices = {},buttons={},
+         front = true, audioAvailable = true, playCalls = 0, lockEnabled = false,
+         position = {x = 500, y = 400}, frame = {x = 40, y = 40, w = 1000, h = 700}}
+     local hs = {timer = {}, eventtap = {event = {types = {}}}, canvas = {windowLevels = {overlay = 1}},
+@@ -77,10 +77,14 @@ local function fixture(group)
+         "rightMouseDragged","otherMouseDragged","scrollWheel"}) do
+         hs.eventtap.event.types[key] = index
+     end
+-    hs.eventtap.new = function(_,callback)
+-        local tap = {callback = callback, enabled = false}
+-        function tap:start() self.enabled = true; env.lockEnabled = true end
+-        function tap:stop() self.enabled = false; env.lockEnabled = false end
++    hs.eventtap.checkMouseButtons=function()return env.buttons end
++    hs.eventtap.event.properties={mouseEventButtonNumber=1,mouseEventClickState=2,mouseEventWindowUnderMousePointer=3}
++    hs.eventtap.new = function(events,callback)
++        local gate=false
++        for _,typ in ipairs(events) do if typ==hs.eventtap.event.types.mouseMoved then gate=true end end
++        local tap = {callback = callback, enabled = false,isGate=gate}
++        function tap:start() self.enabled = true;if self.isGate then env.lockEnabled = true end end
++        function tap:stop() self.enabled = false;if self.isGate then env.lockEnabled = false end end
+         function tap:isEnabled() return self.enabled end
+         return tap
+     end
+@@ -88,7 +92,9 @@ local function fixture(group)
+         env.keyStrokeKey = key
+         if not env.neutralFails then env.title = "Study Start" end
+     end
+-    local app = {name = function() return "Google Chrome" end}
++    local app = {name = function() return "Google Chrome" end,
++        isFrontmost=function()return not env.inactiveApp end,
++        activate=function()env.inactiveApp=false;env.activated=true;return true end}
+     local win = {}
+     function win:id() return 7 end
+     function win:application() return app end
+@@ -105,6 +111,18 @@ local function fixture(group)
+     end
+     hs.window.get = function(id) return id == 7 and not env.windowMissing and win or nil end
+     hs.window.frontmostWindow = function() return env.front and win or nil end
++    function env.mouseEvent(name,button)
++        local ev={}
++        function ev:getType()return hs.eventtap.event.types[name]end
++        function ev:getProperty(prop)
++            if prop==1 then return button or (name:find("right") and 1 or 0)end
++            if prop==2 then return 1 end
++            if prop==3 then return 7 end
++        end
++        function ev:location()return {x=env.position.x,y=env.position.y}end
++        function ev:timestamp()return env.time*1e9 end
++        return ev
++    end
+     hs.canvas.new = function(frame)
+         local canvas = {rect = frame}
+         function canvas:appendElements() return self end
+@@ -1042,4 +1060,189 @@ test("observed polling gaps are recorded rather than claiming 50ms precision",fu
+     eq(seen,true)
+ end)
+ 
++test("trial timeout is 20 seconds from reveal, excluding the audio prompt",function()
++    local c,e,s=fixture()
++    eq(c.cfg.timeoutSeconds,20)
++    startPrompt(c,e);e.advance(12)
++    eq(c.model.phase,"PROMPT")
++    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
++    local reveal=c.revealTime
++    e.advance(19.99);eq(c.model.phase,"RUNNING")
++    e.advance(0.02);eq(c.model.phase,"OUTCOME")
++    eq(s.trials[1].status,"timeout");eq(s.trials[1].retrieval_time_s,nil)
++    assert(math.abs(s.trials[1].observed_duration_s-20)<1e-6)
++end)
++
++test("target mouse-down followed by completion still delivers its mouse-up to Chrome",function()
++    local c,e,s=fixture()
++    running(c,e)
++    eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseDown")),false)
++    e.buttons={[1]=true,left=true}
++    e.title=c.model:currentTrial().targetTitle;c:poll()
++    eq(c.model.phase,"OUTCOME");assert(c.mouseTap)
++    e.buttons={}
++    eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),false,"Matching release must not be swallowed")
++    e.advance(Config.outcomeHoldSeconds)
++    eq(c.model.phase,"READY");eq(#s.trials,1)
++    local found=false
++    for _,event in ipairs(s.events) do
++        if event.name=="MOUSE_INPUT_TRACE" then
++            for _,input in ipairs(event.context.detail.events) do
++                if input.decision=="pass_existing_release" then found=true end
++            end
++        end
++    end
++    eq(found,true,"The passed release must be auditable")
++end)
++
++test("right and extra buttons preserve only the release of a pre-lock press",function()
++    for _,case in ipairs({{index=2,name="rightMouseUp",button=1},{index=5,name="otherMouseUp",button=4}}) do
++        local c,e=fixture()
++        e.buttons={[case.index]=true}
++        assert(c:lock())
++        e.buttons={}
++        eq(c.mouseTap.callback(e.mouseEvent(case.name,case.button)),false)
++        eq(c.mouseTap.callback(e.mouseEvent(case.name,case.button)),true,"Only one matching release passes")
++    end
++end)
++
++test("new masked clicks remain blocked across repeated lock calls",function()
++    local c,e=fixture()
++    assert(c:lock())
++    eq(c.mouseTap.callback(e.mouseEvent("leftMouseDown")),true)
++    e.buttons={[1]=true}
++    local original=c.mouseTap
++    assert(c:lock());eq(c.mouseTap,original,"Retain the gate and button history")
++    e.buttons={}
++    eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),true)
++end)
++
++test("held target click delays reset until release without extending retrieval time",function()
++    local c,e,s=fixture()
++    running(c,e)
++    e.time=c.revealTime+0.4;e.buttons={[1]=true}
++    e.title=c.model:currentTrial().targetTitle;c:poll()
++    e.advance(Config.outcomeHoldSeconds+0.1)
++    eq(c.model.phase,"OUTCOME");eq(c.mask,nil)
++    eq(e.focusTabCalls,1,"No neutral reset while the target click is held")
++    assert(math.abs(s.trials[1].retrieval_time_s-0.4)<1e-8)
++    e.buttons={};eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),false)
++    e.advance(0.03);eq(c.model.phase,"READY")
++    assert(math.abs(s.trials[1].retrieval_time_s-0.4)<1e-8)
++end)
++
++test("unreleased outcome click stops safely without a second outcome or replay",function()
++    local c,e,s=fixture()
++    c.cfg.autoAdvance=true
++    running(c,e);e.buttons={[1]=true}
++    e.title=c.model:currentTrial().targetTitle;c:poll()
++    e.advance(Config.outcomeHoldSeconds+Config.mouseReleaseWaitSeconds+0.1)
++    eq(c.model.phase,"PAUSED");eq(c.model.trialIndex,2)
++    eq(#s.trials,1);eq(e.playCalls,1);eq(e.lockEnabled,false)
++end)
++
++test("a held button before reset retains the unexposed trial",function()
++    local c,e,s=fixture()
++    c:approveSetup();e.buttons={[1]=true};c:startTrial()
++    eq(c.model.phase,"PAUSED");eq(c.model.trialIndex,1)
++    eq(#s.trials,0);eq(e.playCalls,0)
++end)
++
++test("premature held click cannot leak into the timed trial at reveal",function()
++    local c,e,s=fixture()
++    startPrompt(c,e)
++    eq(c.mouseTap.callback(e.mouseEvent("leftMouseDown")),true)
++    e.buttons={[1]=true}
++    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
++    eq(c.model.phase,"PAUSED");eq(c.model.trialIndex,2)
++    eq(s.trials[1].status,"interrupted");eq(s.trials[1].timed_started,false)
++end)
++
++test("a fully blocked pre-reveal click does not eat the first real click",function()
++    local c,e,s=fixture()
++    startPrompt(c,e)
++    eq(c.mouseTap.callback(e.mouseEvent("leftMouseDown")),true)
++    eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),true)
++    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
++    eq(c.mouseTap,nil)
++    eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseDown")),false)
++    eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseUp")),false)
++    e.title=c.model:currentTrial().targetTitle;c:poll()
++    eq(s.trials[1].total_tab_switches,1);eq(s.trials[1].first_selection_correct,true)
++end)
++
++test("Setup activates Chrome without a synthetic click and checks app activity",function()
++    local c,e,s=fixture()
++    e.inactiveApp=true
++    c.hs.eventtap.leftClick=function()error("Synthetic study clicks are forbidden")end
++    startPrompt(c,e)
++    eq(e.activated,true);eq(e.inactiveApp,false)
++    e.inactiveApp=true -- Window can still be geometrically foremost, app inactive.
++    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
++    eq(c.model.phase,"PAUSED");eq(s.trials[1].timed_started,false)
++end)
++
++test("click trace is diagnostic only and does not count clicks as selections",function()
++    local c,e,s=fixture()
++    running(c,e)
++    for _=1,2 do
++        eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseDown")),false)
++        eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseUp")),false)
++    end
++    e.title=c.model:currentTrial().targetTitle;c:poll()
++    eq(s.trials[1].total_tab_switches,1)
++    eq(s.trials[1].incorrect_selections,0)
++end)
++
++test("queued release is preserved even when the instantaneous physical poll is already up",function()
++    local c,e=fixture()
++    running(c,e)
++    c.clickTraceTap.callback(e.mouseEvent("leftMouseDown"))
++    e.buttons={} -- Physical release happened; its event has not reached Chrome yet.
++    e.title=c.model:currentTrial().targetTitle;c:poll()
++    e.advance(Config.outcomeHoldSeconds+0.05)
++    eq(c.model.phase,"OUTCOME","Do not reset before the queued release is delivered")
++    eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),false)
++    e.advance(0.03);eq(c.model.phase,"READY")
++end)
++
++test("matching-release protection also works with diagnostic logging disabled",function()
++    local c,e,s=fixture()
++    c.cfg.mouseClickDiagnostics=false
++    running(c,e)
++    c.clickTraceTap.callback(e.mouseEvent("leftMouseDown"))
++    e.title=c.model:currentTrial().targetTitle;c:poll()
++    eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),false)
++    for _,event in ipairs(s.events) do assert(event.name~="MOUSE_INPUT_TRACE") end
++end)
++
++test("a single click completes the next automatic trial after releasing the prior click",function()
++    local c,e,s=fixture()
++    c.cfg.autoAdvance=true
++    running(c,e)
++    for trialIndex=1,2 do
++        eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseDown")),false)
++        e.buttons={[1]=true}
++        e.title=c.model:currentTrial().targetTitle;c:poll()
++        e.buttons={};eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),false)
++        eq(#s.trials,trialIndex);eq(s.trials[trialIndex].total_tab_switches,1)
++        e.advance(Config.outcomeHoldSeconds+Config.interTrialDelaySeconds+0.02)
++        if trialIndex==1 then
++            eq(c.model.phase,"PROMPT")
++            e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
++        end
++    end
++end)
++
++test("pause with a held click does not leave stale button history on resume",function()
++    local c,e,s=fixture()
++    running(c,e)
++    c.clickTraceTap.callback(e.mouseEvent("leftMouseDown"));e.buttons={[1]=true}
++    c:emergency("Participant break")
++    e.buttons={} -- Natural release after emergency, with no controller tap installed.
++    c:setup();running(c,e)
++    eq(c.model.phase,"RUNNING");eq(c.model.trialIndex,2)
++    eq(c.mouseTap,nil);eq(#s.trials,1)
++end)
++
+ return results
