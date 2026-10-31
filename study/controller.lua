@@ -347,16 +347,6 @@ function M:newSession()
   local mode=self:text("Mode: test, pilot, or main","pilot")
   if not mode then return end
   if mode~="test" and mode~="pilot" and mode~="main" then return self:notice("Invalid mode") end
-  if mode=="main" and not self.cfg.mainStudyEnabled then
-    return self:notice("Main mode is disabled until the Mac checklist is completed in config.lua")
-  end
-  if mode=="main" then
-    for key,value in pairs(self.cfg.recordingProfile) do
-      if tostring(value):find("UNVERIFIED",1,true) then
-        return self:notice("Complete the study configuration first: "..key)
-      end
-    end
-  end
   local participant=self:text("Participant code (letters/numbers, no names)",mode=="main" and "" or "TEST001")
   if not participant then return end
   if not participant:match("^[A-Z][A-Z0-9_%-]*$") or #participant>32 then

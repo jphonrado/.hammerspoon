@@ -81,7 +81,7 @@ Recording filenames/session IDs: __________
 - [ ] Recordings have been listened to; actual spoken wording and consistent volume verified.
 - [ ] Separate practice materials and participant forms are ready.
 - [ ] Participant pilot completed separately from main data; remaining issues documented.
-- [ ] Actual profile values entered in study/config.lua and mainStudyEnabled deliberately set only when ready.
+- [ ] Actual profile values entered in study/config.lua before collecting main-study data.
 
 Notes, failures, changes and evidence: __________________________________________
 

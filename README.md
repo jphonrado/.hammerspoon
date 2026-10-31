@@ -75,7 +75,7 @@ The repository's `init.lua` is already the loader. **Do not replace it with a li
 
 4. Reload Hammerspoon. Grant the permissions needed by the installed Hammerspoon/OBS versions, then test them. The HCI menu and a loaded message should appear.
 5. Keep the HTML content project available separately on the Mac. Open its launcher to prepare the assigned topic/load. This package does not open or rearrange browser tabs for you.
-6. Follow `docs/MAC_CHECKLIST.md` in **test/pilot mode** first. Fill the actual recording/device profile in `study/config.lua`. Enable `mainStudyEnabled` only after those checks and the remaining protocol requirements are resolved.
+6. Follow `docs/MAC_CHECKLIST.md` in **test/pilot mode** first. The controller permits main mode with the same runtime settings as test and pilot; the checklist remains recommended for validating the recording setup.
 
 Use one dedicated Chrome study window/profile, the fixed external mouse and the intended display settings. Use direct HTML files or the documented plain static server for scored sessions rather than Live Server's injected reloading code.
 
@@ -103,7 +103,7 @@ These are researcher settings, not participant controls. The trial limit is **20
 
 Automatic mode requires the researcher to confirm once at block preparation that **all task tabs AND Study Start are visible without tab-list scrolling, collapsed sections, or hidden tabs**. The controller checks window/frame, neutral title, mask geometry, and pointer; it does not prove tab order, exact count, panel width, visibility, or OBS status automatically. If scrolling is needed, choose **Manual trials** and reset the viewport before each trial. No unvalidated scrolling automation is claimed. Do not change geometry or reduce tab size merely to obtain automatic mode outside the frozen study settings.
 
-Set `autoAdvance=false` to retain per-trial manual setup. Set `autoAdvanceAfterTimeout=false` to wait for manual preparation after a timeout. Pause, emergency, Setup, interrupted/invalid trials, loss of the study window/focus/frame, and storage/audio failures cancel continuation and require review/setup. Neither mode automatically enters a new condition, resumes a crashed run, or replays an exposed prompt.
+Set `autoAdvance=false` to retain per-trial manual setup. Set `autoAdvanceAfterTimeout=false` to wait for manual preparation after a timeout. Test, pilot and main use the same runtime settings; main still uses the frozen participant allocation and completion guards. Pause, emergency, Setup, interrupted/invalid trials, loss of the study window/focus/frame, and storage/audio failures cancel continuation and require review/setup. Neither mode automatically enters a new condition, resumes a crashed run, or replays an exposed prompt.
 
 ## Session workflow
 
