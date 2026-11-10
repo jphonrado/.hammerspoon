@@ -333,7 +333,7 @@ function M:calibrateMask(orientation)
   self.hs.settings.set(self.cfg.settingsPrefix.."mask_"..orientation,
     {x=first.x-f.x,y=first.y-f.y,w=p.x-first.x,h=p.y-first.y,
       frame_w=f.w,frame_h=f.h,screen_id=tostring(win:screen():id())})
-  self:notice(orientation.." mask calibrated; verify full tab coverage in OBS")
+  self:notice(orientation.." mask calibrated; verify full tab coverage on screen")
 end
 function M:text(prompt,default)
   local button,value=self.hs.dialog.textPrompt("HCI2000 researcher setup",prompt,default or "","OK","Cancel")
@@ -368,12 +368,12 @@ function M:newSession()
     end
   end end
   local run=os.date("!%Y%m%dT%H%M%SZ").."-"..string.format("%.0f",self.hs.timer.absoluteTime())
-  local meta={schema_version="2.0",mode=mode,participant=participant,group=group,session_id=run,
+  local meta={schema_version="2.1",mode=mode,participant=participant,group=group,session_id=run,
     plan=plan,practice_first=entry and entry.practiceFirst or "not-main-allocation",
     versions={controller=self.cfg.version,materials=Materials.version,manifest_sha256=Materials.manifestSha256,
       original_zip_sha256=Materials.sourceZipSha256,expected_audio_sha256=Materials.audioSha256,
       materials_definition_sha256=Materials.definitionSha256},
-    settings=copy(self.cfg),start_cue="mask_disappearance",recording_status="REQUIRES_MAC_AND_VIDEO_VERIFICATION"}
+    settings=copy(self.cfg),start_cue="mask_disappearance",recording_status="OPTIONAL_BACKUP_NOT_CODED"}
   local store,err=Storage.create(self.root.."/records",meta,self.hs)
   if not store then return self:notice("Session not created: "..tostring(err)) end
   self:cancelTimers();self:stopSound();self:unlock();self:hideMask()
@@ -381,7 +381,7 @@ function M:newSession()
   self.windowID=nil;self.approvedFrame=self.hs.settings.get(self.cfg.settingsPrefix.."frame")
   self.setupApproved=false
   self.autoBlockApproval=nil;self.autoNextPending=nil
-  if not self:event("SESSION_CREATED",{detail="Awaiting researcher setup; final measurements are video-coded"}) then return end
+  if not self:event("SESSION_CREATED",{detail="Awaiting researcher setup; final measurements come from controller records"}) then return end
   if not self:checkpoint() then return end
   self:notice("Session created. Prepare block, save study window, then approve setup (Ctrl+Alt+Cmd+A).")
 end
@@ -410,13 +410,13 @@ function M:approveSetup()
   if not self.hs.settings.get(self.cfg.settingsPrefix.."pointer") then return self:notice("Calibrate the pointer first") end
   if not self:maskSpec() then return self:notice("Calibrate this orientation's mask first") end
   local b=self.model:currentBlock()
-  local message=string.format("%s / %s (%s)\nExactly %d total tabs; Study Start LAST (rightmost/bottom).\nVerify actual order, orientation, fixed panel width, scroll reset, hover aids OFF.\nOBS must record the mask, pointer and audio. Preparation must be hidden from the participant.\nConfirm these checks before starting this block or resuming trials.",b.name,b.contentSet,b.topic,b.expectedTabCount)
+  local message=string.format("%s / %s (%s)\nExactly %d total tabs; Study Start LAST (rightmost/bottom).\nVerify actual order, orientation, fixed panel width, scroll reset, hover aids OFF.\nPreparation must be hidden from the participant. OBS backup recording is optional.\nConfirm these checks before starting this block or resuming trials.",b.name,b.contentSet,b.topic,b.expectedTabCount)
   local answer=self.hs.dialog.blockAlert("Researcher preflight",message,"Checks complete","Cancel")
   if answer~="Checks complete" then return end
   self.autoBlockApproval=nil
   if self.cfg.autoAdvance then
     local fit=self.hs.dialog.blockAlert("Automatic block flow",
-      "Are ALL task tabs and Study Start fully visible in the approved tab list, with no scrolling or collapsed/hidden section needed?\n\nAll tabs visible: approve automatic progression within this block.\nManual trials: retain per-trial setup so the tab-list viewport can be reset.\n\nThe controller does not automatically verify tab order, panel width, or OBS recording. Pause immediately if the setup changes.",
+      "Are ALL task tabs and Study Start fully visible in the approved tab list, with no scrolling or collapsed/hidden section needed?\n\nAll tabs visible: approve automatic progression within this block.\nManual trials: retain per-trial setup so the tab-list viewport can be reset.\n\nThe controller does not automatically verify tab order or panel width. Pause immediately if the setup changes.",
       "All tabs visible","Manual trials")
     if fit=="All tabs visible" then
       self.autoBlockApproval={block_index=self.model.blockIndex,window_id=self.windowID,
@@ -431,7 +431,7 @@ function M:approveSetup()
   if not masked then self.model:resetPreflight();self.setupApproved=false;return self:notice(maskErr) end
   local locked,lockErr=self:lock()
   if not locked then self:emergency(lockErr);return end
-  local detail="Orientation/order/scroll/recording manually confirmed; "
+  local detail="Orientation/order/scroll manually confirmed; "
     ..(self.autoBlockApproval and "all-tabs-visible automatic block approved" or "manual per-trial progression")
   if not self:event("PREFLIGHT_APPROVED",{detail=detail}) then return end
   if not self:checkpoint() then return end
@@ -629,7 +629,7 @@ function M:poll()
   self.lastPollTime=now
   self.aux.maxPollGap=math.max(self.aux.maxPollGap or 0,gap)
   if gap>(self.cfg.pollGapWarningSeconds or 0.20) then
-    if not self:event("POLL_GAP",{elapsed_s=gap,detail="Actual sample gap; reconcile selections against OBS"}) then return end
+    if not self:event("POLL_GAP",{elapsed_s=gap,detail="Actual sample gap; a very brief selection during this gap could have been missed"}) then return end
   end
   self:observeTitle("poll")
 end
@@ -659,9 +659,16 @@ function M:observeTitle(source)
   self:event("TITLE_CHANGE_OBSERVED",{observed_title=title,elapsed_s=observedAt-self.revealTime,
     monotonic_s=observedAt,observation_source=source,
     aux_selection_count=self.aux.selections,aux_incorrect_count=self.aux.incorrect,
-    aux_first_correct=self.aux.first,detail="Observed transition; verify all selections against video"})
+    aux_first_correct=self.aux.first,detail="Observed title transition"})
   if correct and not self.fatal then self:finish("completed_auto",observedAt) end
 end
+-- Interruptions started by a person. These exact strings are the reasons passed to
+-- emergency() by the hotkeys/menu below; any other reason counts as technical_loss.
+local HUMAN_INTERRUPTS={
+  ["Participant break / facilitator pause"]=true,["Facilitator pause"]=true,
+  ["Trial invalidated by facilitator"]=true,["Session ended by facilitator"]=true,
+  ["Emergency release"]=true,
+}
 function M:recordOutcome(record,source,endpoint)
   if not record or not self.store then return true end
   if not self:flushMouseTrace(record) then return false end
@@ -700,9 +707,15 @@ function M:recordOutcome(record,source,endpoint)
   if source=="completed_auto" and self.revealTime and record.timed_interval_started then
     row.retrieval_time_s=endpoint-self.revealTime
   end
-  -- Zero observed switches cannot prove no selection: sampling may miss one.
-  -- A timeout can contain wrong selections; a voluntary break is not data loss.
-  row.no_selection=nil;row.technical_loss=nil
+  -- Software-only final flags. no_selection: a timeout in which no title change was
+  -- observed (polling could in principle miss a very brief selection; see the paper's
+  -- limitations). technical_loss: an interruption not triggered by a person.
+  row.no_selection=nil;row.technical_loss=false
+  if source=="completed_auto" then row.no_selection=false
+  elseif source=="timeout" and record.timed_interval_started and self.cfg.autoDetectTarget and self.aux then
+    row.no_selection=(self.aux.selections==0)
+  end
+  if source=="interrupted" then row.technical_loss=not HUMAN_INTERRUPTS[record.detail or ""] end
   local ok,err=self.store:trial(row)
   if not ok then self:storageFailure(err) end
   return ok
@@ -710,7 +723,7 @@ end
 function M:finish(status,endpoint)
   if not self.model or self.fatal or self.model.phase~="RUNNING" then return end
   endpoint=endpoint or self:now()
-  local ok,record=self.model:finish(status,"Final outcome measurements require video coding")
+  local ok,record=self.model:finish(status,"Outcome recorded by controller")
   if not ok then return self:notice(record) end
   self:cancelTimers()
   if not self:recordOutcome(record,status,endpoint) then return end
@@ -779,7 +792,7 @@ function M:nextBlock()
   if self.model.phase=="SESSION_COMPLETE" then
     local ok,err=self.store:close("completed")
     if not ok then return self:storageFailure(err) end
-    return self:notice("Four blocks finished. Complete TLX weighting/interview. Video coding remains required.")
+    return self:notice("Four blocks finished. Complete TLX weighting/interview.")
   end
   self.model:resetPreflight()
   if not self:event("NEXT_BLOCK_SETUP") then return end

@@ -1,7 +1,7 @@
--- Study records: append-only auxiliary observations and a separate coding sheet.
+-- Study records: append-only event and trial logs, plus main_data.csv (the analysis table).
 -- No Hammerspoon globals are required: pass hs to create/inspectParticipant.
 -- A surviving ACTIVE.json / .session-lock is deliberately NOT auto-resumed.
-local M = { SCHEMA_VERSION = "2.0" }
+local M = { SCHEMA_VERSION = "2.1" }
 local Store = {}
 Store.__index = Store
 
@@ -27,16 +27,10 @@ M.TRIAL_COLUMNS = columns({
     "mask_hide_returned_monotonic_s", "endpoint_monotonic_s", "observed_duration_s",
     "max_poll_gap_s", "verification_required", "reason",
 })
-M.VIDEO_COLUMNS = columns({
-    "controller_status", "video_status", "video_file", "video_start_frame",
-    "video_target_frame", "frame_rate", "retrieval_time_s", "total_tab_switches",
-    "incorrect_selections", "first_selection_correct", "no_selection",
-    "technical_loss", "coder", "notes",
-})
 M.MAIN_COLUMNS = columns({
     "controller_status", "measurement_source", "retrieval_time_s",
     "total_tab_switches", "incorrect_selections", "first_selection_correct",
-    "no_selection", "technical_loss", "video_verified", "coder", "notes",
+    "no_selection", "technical_loss", "notes",
 })
 
 local function err(message) return nil, message end
@@ -293,7 +287,7 @@ function M.create(baseDir, meta, hs)
     }, Store)
     for _, entry in ipairs({
         {"events.csv", M.EVENT_COLUMNS}, {"trials_aux.csv", M.TRIAL_COLUMNS},
-        {"video_coding.csv", M.VIDEO_COLUMNS}, {"main_data.csv", M.MAIN_COLUMNS},
+        {"main_data.csv", M.MAIN_COLUMNS},
     }) do
         local ok, createError = writeText(join(path, entry[1]), table.concat(entry[2], ",") .. "\n")
         if not ok then return fail(store, createError) end
@@ -357,12 +351,6 @@ function Store:trial(record)
     if row.prompt_exposed == true then self.exposureSeen = true end
     local ok, appendError = appendCSV(self.hs, join(self.path, "trials_aux.csv"), M.TRIAL_COLUMNS, row)
     if not ok then return fail(self, appendError) end
-    local coding = identity(self, record)
-    coding.controller_status = record.status
-    -- Every final measurement remains nil/blank. Never copy polling observations
-    -- into the authoritative coding sheet, even when the observer saw no error.
-    local coded, codingError = appendCSV(self.hs, join(self.path, "video_coding.csv"), M.VIDEO_COLUMNS, coding)
-    if not coded then return fail(self, codingError) end
     local main = identity(self, record)
     main.controller_status = record.status
     main.measurement_source = record.measurement_source or "controller_title_detection"
@@ -372,8 +360,7 @@ function Store:trial(record)
     main.first_selection_correct = record.first_selection_correct
     main.no_selection = record.no_selection
     main.technical_loss = record.technical_loss
-    main.video_verified = false
-    main.coder, main.notes = record.coder, record.notes
+    main.notes = record.notes
     local written, mainError = appendCSV(self.hs, join(self.path, "main_data.csv"), M.MAIN_COLUMNS, main)
     if not written then return fail(self, mainError) end
     self.seenTrials[key], self.trialCount = true, self.trialCount + 1

@@ -1,7 +1,8 @@
 # Measurement records and session guards
 
-Schema version: **2.0** (new run folders only). Raw software observations are auxiliary. Final study
-measurements come from the saved video and are entered separately.
+Schema version: **2.1** (new run folders only; 2.0 folders also had `video_coding.csv` and the
+`video_verified`/`coder` columns). Final study measurements come from the controller's own records in
+`main_data.csv`. Video is not coded; an optional OBS backup may be kept to clarify an unusual trial.
 
 ## Record layout
 
@@ -15,14 +16,10 @@ names and consent records do not belong in this folder.
 - `checkpoint.json`: most recent controller snapshot. It supports audit/recovery
   review, **not automatic replay or resume**.
 - `events.csv`: append-only controller commands and observed title transitions.
-- `trials_aux.csv`: one terminal auxiliary record per scheduled trial that was
-  exposed. Counts and times are software observations requiring video review.
-- `video_coding.csv`: identity/status rows plus **blank** final measurement
-  columns. Enter the video-coded results here, preferably in a separately saved
-  analysis copy while retaining the original generated records.
-- `main_data.csv`: UNVERIFIED per-trial operational estimates. This is not the
-  final analysis source. `tools/encode_session.py` produces `analysis_trials.csv`
-  from a separate, checked OBS coding copy without substituting estimates.
+- `trials_aux.csv`: one terminal audit record per scheduled trial that was
+  exposed, with the raw polling observations behind `main_data.csv`.
+- `main_data.csv`: **the analysis table**, one row per exposed trial. See
+  "Final outcomes" below.
 
 
 At participant level, `ACTIVE.json` and `.session-lock/` reserve the participant.
@@ -44,7 +41,7 @@ position, equal to browser position with neutral-LAST), `task_tab_count` (5/15),
 and `visible_tab_count` (6/16). These describe the approved plan, not an automatic
 measurement of the actual native layout.
 
-## Auxiliary events and outcomes
+## Event and trial log fields
 
 - `wall_epoch`: wall-clock seconds for matching records to sessions/recordings.
 - `monotonic_s`: boot-relative seconds supplied by the controller.
@@ -70,60 +67,51 @@ measurement of the actual native layout.
   This includes facilitator reaction delay and is not final retrieval time.
 - `prompt_exposed`, `timed_started`: separate flags; an interrupted prompt can
   be exposed even before the timed interval starts.
-- `verification_required`: always true in `trials_aux.csv`.
+- `verification_required`: legacy flag, always true in `trials_aux.csv`; not used for analysis.
 - `status`, `reason`, `phase`, `event`, `detail`: controller state/outcome and
   interruption/context markers. Consult the controller README for its statuses.
 
-## Video-coded outcomes
+## Final outcomes (`main_data.csv`)
 
-`video_status`, `video_file`, `video_start_frame`, `video_target_frame`,
-`frame_rate`, `retrieval_time_s`, `total_tab_switches`, `incorrect_selections`,
-`first_selection_correct`, `no_selection`, `technical_loss`, `coder`, and `notes`
-are left blank by the controller. `controller_status` retains the auxiliary
-outcome for comparison; it does not decide the final coded outcome.
+`main_data.csv` is the analysis table: one row per exposed trial, written by the controller when
+the trial ends. All measures are software observations of the active Chrome window's title,
+sampled every 0.05 s with accessibility notifications as a backup. Video is not coded.
 
-Completed retrieval time uses the agreed visible onset and first target-active
-frame. Timeouts have no completed retrieval-time value. A genuine no-selection
-attempt is distinct from an unobservable selection caused by recording failure.
-For a completed, verified trial, total switches = incorrect selections + 1.
+- `controller_status`: `completed_auto`, `completed_manual`, `timeout` or `interrupted`.
+- `measurement_source`: `controller_poll_only` or `controller_accessibility_and_poll`.
+- `retrieval_time_s`: seconds from the controller's reveal command to the first observed title equal
+  to the target. Filled only for `completed_auto`; blank for timeouts, interruptions and manual
+  completion.
+- `total_tab_switches`: observed title changes in the timed interval, including the final correct one
+  and any return to Study Start. Blank if title detection was disabled.
+- `incorrect_selections`: observed title changes to any page other than the target (Study Start
+  included).
+- `first_selection_correct`: true if the first observed title change was the target, false if it was
+  not; blank if none was observed.
+- `no_selection`: true for a timeout with zero observed title changes; false for a completed trial or
+  a timeout with at least one; blank for an interruption or when detection was disabled.
+- `technical_loss`: true for an interruption not started by a person (window or focus change,
+  input-lock loss, audio failure, mask or click-tap failure, controller reload); false otherwise.
+  Interruptions started by a person (participant break/pause, facilitator pause, invalidate, end
+  session, Esc) are not technical loss.
+- `notes`: free text, blank from the controller.
 
-## Primary analysis rows
+For a completed trial `total_tab_switches = incorrect_selections + 1`. Timeouts have no completed
+retrieval time. Manual completion (`.`) records no retrieval time, because the controller cannot
+establish the endpoint.
 
-`main_data.csv` contains provisional estimates using the dependent-variable field names
-`retrieval_time_s`, `total_tab_switches`, `incorrect_selections`,
-`first_selection_correct`, `no_selection`, and `technical_loss`. For an
-automatically completed trial, `retrieval_time_s` starts when the controller
-removes the gray mask and ends when the correct target tab is detected.
-`measurement_source` identifies this as a controller title-detection estimate,
-and `video_verified` is always false in the raw file. Counts are preserved for
-timed manual/timeout/interrupted outcomes when the detector was enabled. Missing
-first selection remains blank, not false; disabled detection leaves unavailable
-counts blank. `no_selection` and `technical_loss` remain blank pending review:
-a timeout may contain errors and an ordinary break need not lose data.
-Review OBS in a separate coding copy; export final data using
-[ENCODING.md](docs/ENCODING.md). Manual completion does not
-produce a retrieval-time estimate because the controller cannot establish the
-correct tab-selection endpoint.
+Limitations: `retrieval_time_s` starts at the reveal command, not the first visible frame, and ends at
+the sample or notification that first shows the target title, so it can differ from the true time by
+about one sampling interval. A very brief activation between samples could be missed, and
+re-selecting the already active tab is not a title change and is not counted. `POLL_GAP` events in
+`events.csv` and `max_poll_gap_s` in `trials_aux.csv` show where sampling was late, and the
+`MOUSE_INPUT_TRACE` events can be used to cross-check selection counts.
 
-## Encoded outputs
+## Linking surveys
 
-`analysis_trials.csv` preserves all 24 scheduled identities and joins only the
-manually coded OBS values. Missing terminal raw rows are `no_terminal_outcome`,
-which does not prove an unexposed trial after a crash. Coded completion requires
-frames/FPS, coder/recording, and consistent selection counts. `video_verified=1`
-identifies reviewed exposed outcomes; raw estimates are never used as fallback.
-
-`condition_summary.csv` includes mean completed RT with n, first-selection error
-rate with its observable-first-selection n, separately named activation error
-rate and timeouts. Incomplete RT stays missing. Interrupted/lost
-trials are retained in trial output and excluded from these descriptive summaries.
-
-**NASA-TLX is collected through the separate Google Forms survey.** The
-controller does not collect or score it. `survey_join_keys.csv` contains one row
-per condition with participant, session, block and condition IDs for a later
-join to Forms results. Match participant code AND condition, never row order;
-keep test/pilot data separate from main results. Preference/comfort responses
-also remain in the study's chosen survey/interview workflow.
+NASA-TLX is collected through separate Google Forms; the controller does not collect or score it.
+Join the block ratings to `main_data.csv` by participant code AND condition (for example `H-L`),
+never by block order or row order. Keep test and pilot data separate from main results.
 
 ## Integrity behavior
 
@@ -147,6 +135,6 @@ Session provenance includes the current delivered recording hashes and a materia
 
 ## Mouse transition diagnostics (controller 2.2.1)
 
-The configured trial deadline is 20 seconds from software reveal (video supplies final onset). New events named `MOUSE_INPUT_TRACE` contain a bounded JSON `detail` object with button-event names, monotonic receipt times, native timestamps, pointer coordinates, click counts, window-under-pointer IDs and routing decisions: `pass`, `blocked`, or `pass_existing_release`. The capture is buffered in memory and written outside the timed interval to avoid per-click disk delay; a crash can lose an unflushed buffer. It does not count clicks as selections or guarantee every OS event was captured. `mouseClickDiagnostics=false` disables logging, not release-pair protection.
+The configured trial deadline is 20 seconds from the controller's reveal command. New events named `MOUSE_INPUT_TRACE` contain a bounded JSON `detail` object with button-event names, monotonic receipt times, native timestamps, pointer coordinates, click counts, window-under-pointer IDs and routing decisions: `pass`, `blocked`, or `pass_existing_release`. The capture is buffered in memory and written outside the timed interval to avoid per-click disk delay; a crash can lose an unflushed buffer. It does not count clicks as selections or guarantee every OS event was captured. `mouseClickDiagnostics=false` disables logging, not release-pair protection.
 
 The minimum outcome display hold remains 0.30 seconds. If a click is still held/queued, reset waits for its release up to a further two seconds, outside RT. The existing completed row remains valid if this later wait causes a pause; no second terminal row or replay is created. A held button before reveal produces an interruption with no started timing interval.

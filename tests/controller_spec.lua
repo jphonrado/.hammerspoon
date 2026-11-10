@@ -277,7 +277,7 @@ test("adapter immediate post-reveal selection uses preverified neutral baseline"
     eq(s.trials[1].aux_incorrect_count,0)
 end)
 
-test("adapter timeout without selection leaves final outcomes for video",function()
+test("adapter timeout without selection records no retrieval time",function()
     local c,e,s = fixture()
     running(c,e)
     e.advance(Config.timeoutSeconds)
@@ -286,6 +286,7 @@ test("adapter timeout without selection leaves final outcomes for video",functio
     eq(s.trials[1].retrieval_time_s,nil)
     eq(s.trials[1].auto_detection_elapsed_s,nil)
     eq(s.trials[1].aux_first_correct,nil)
+    eq(s.trials[1].no_selection,true)
 end)
 
 test("adapter checkpoint failure cannot acquire a new fatal input lock",function()
@@ -926,29 +927,50 @@ test("loader chains unrelated shutdown once and does not retain stale HCI hooks"
     if not ok then error(message) end
 end)
 
-test("timeout with wrong selections retains counts without inventing no-selection",function()
+test("timeout with wrong selections retains counts and is not a no-selection trial",function()
     local c,e,s=fixture()
     running(c,e)
     e.title="Wrong tab";c:poll()
     e.advance(c.cfg.timeoutSeconds)
     local r=s.trials[1]
     eq(r.status,"timeout");eq(r.total_tab_switches,1);eq(r.incorrect_selections,1)
-    eq(r.first_selection_correct,false);eq(r.no_selection,nil)
+    eq(r.first_selection_correct,false);eq(r.no_selection,false)
     eq(r.retrieval_time_s,nil);eq(r.aux_incorrect_pages[1],"Wrong tab")
 end)
 
-test("timeout without observable selection leaves first correctness and no-selection unknown",function()
+test("timeout with zero observed selections is a no-selection trial",function()
     local c,e,s=fixture()
     running(c,e);e.advance(c.cfg.timeoutSeconds)
-    eq(s.trials[1].first_selection_correct,nil);eq(s.trials[1].no_selection,nil)
+    eq(s.trials[1].first_selection_correct,nil);eq(s.trials[1].no_selection,true)
     eq(s.trials[1].total_tab_switches,0)
 end)
 
-test("participant break does not invent technical loss",function()
+test("completed trial is neither no-selection nor technical loss",function()
     local c,e,s=fixture()
-    running(c,e);c:emergency("Participant requests a break")
-    eq(s.trials[1].status,"interrupted");eq(s.trials[1].technical_loss,nil)
-    eq(s.trials[1].retrieval_time_s,nil)
+    running(c,e)
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    eq(s.trials[1].status,"completed_auto")
+    eq(s.trials[1].no_selection,false);eq(s.trials[1].technical_loss,false)
+end)
+
+test("every human-started interruption is not technical loss",function()
+    for _,reason in ipairs({"Participant break / facilitator pause","Facilitator pause",
+        "Trial invalidated by facilitator","Session ended by facilitator","Emergency release"}) do
+        local c,e,s=fixture()
+        running(c,e);c:emergency(reason)
+        eq(s.trials[1].status,"interrupted",reason)
+        eq(s.trials[1].technical_loss,false,reason)
+        eq(s.trials[1].retrieval_time_s,nil,reason)
+    end
+end)
+
+test("controller or window faults count as technical loss",function()
+    for _,reason in ipairs({"Input lock was lost before reveal","Audio playback failed; exposure is conservatively retained"}) do
+        local c,e,s=fixture()
+        running(c,e);c:emergency(reason)
+        eq(s.trials[1].status,"interrupted",reason)
+        eq(s.trials[1].technical_loss,true,reason)
+    end
 end)
 
 test("disabled detector leaves unavailable selection counts blank",function()

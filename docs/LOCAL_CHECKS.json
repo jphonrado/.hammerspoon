@@ -1,7 +1,7 @@
 {
   "passed": true,
   "runtime": "Lua 5.4 via development-only Python lupa",
-  "package_root": "/workspace/scratch/a331770d76c2/orlando-click-fix",
+  "package_root": "/sessions/rcw-01gwukxje13qvqekpbdjpotu/mnt/.hammerspoon",
   "syntax": [
     {
       "file": "init.lua",
@@ -63,134 +63,139 @@
     {
       "suite": "integration",
       "passed": true,
-      "case_count": 24,
+      "case_count": 25,
       "cases": [
         {
+          "name": "all four paper groups complete exactly 24 scheduled entries with verified identity",
           "error": "nil",
-          "passed": true,
-          "name": "all four paper groups complete exactly 24 scheduled entries with verified identity"
+          "passed": true
         },
         {
+          "name": "paper condition orders and six-trial schedules are preserved",
           "error": "nil",
-          "passed": true,
-          "name": "paper condition orders and six-trial schedules are preserved"
+          "passed": true
         },
         {
+          "name": "frozen allocation has four per group, permuted blocks, balanced familiarization",
           "error": "nil",
-          "passed": true,
-          "name": "frozen allocation has four per group, permuted blocks, balanced familiarization"
+          "passed": true
         },
         {
+          "name": "interruption in PROMPT persists exposure and consumes exactly once",
           "error": "nil",
-          "passed": true,
-          "name": "interruption in PROMPT persists exposure and consumes exactly once"
+          "passed": true
         },
         {
+          "name": "interruption in WAIT_REVEAL persists exposure and consumes exactly once",
           "error": "nil",
-          "passed": true,
-          "name": "interruption in WAIT_REVEAL persists exposure and consumes exactly once"
+          "passed": true
         },
         {
+          "name": "interruption in RUNNING persists exposure and consumes exactly once",
           "error": "nil",
-          "passed": true,
-          "name": "interruption in RUNNING persists exposure and consumes exactly once"
+          "passed": true
         },
         {
+          "name": "unexposed setup failure retains the planned entry without an outcome",
           "error": "nil",
-          "passed": true,
-          "name": "unexposed setup failure retains the planned entry without an outcome"
+          "passed": true
         },
         {
+          "name": "break during outcome hold preserves one completion and resumes at the next entry",
           "error": "nil",
-          "passed": true,
-          "name": "break during outcome hold preserves one completion and resumes at the next entry"
+          "passed": true
         },
         {
+          "name": "zero, false, missing values and quoted event text survive CSV round trip",
           "error": "nil",
-          "passed": true,
-          "name": "zero, false, missing values and quoted event text survive CSV round trip"
+          "passed": true
         },
         {
+          "name": "storage does not invent measures that the record does not carry",
           "error": "nil",
-          "passed": true,
-          "name": "manual completion and timeout never fill final video-coded measures"
+          "passed": true
         },
         {
+          "name": "malformed existing log header is rejected and records are not silently appended",
           "error": "nil",
-          "passed": true,
-          "name": "malformed existing log header is rejected and records are not silently appended"
+          "passed": true
         },
         {
+          "name": "deleted run directory is reported instead of attempting a stale checkpoint",
           "error": "nil",
-          "passed": true,
-          "name": "deleted run directory is reported instead of attempting a stale checkpoint"
+          "passed": true
         },
         {
+          "name": "write failure fails closed and retains an active-session guard",
           "error": "nil",
-          "passed": true,
-          "name": "write failure fails closed and retains an active-session guard"
+          "passed": true
         },
         {
+          "name": "fresh reload is blocked instead of replaying an active or interrupted participant",
           "error": "nil",
-          "passed": true,
-          "name": "fresh reload is blocked instead of replaying an active or interrupted participant"
+          "passed": true
         },
         {
+          "name": "main participant completion cannot be silently collected a second time",
           "error": "nil",
-          "passed": true,
-          "name": "main participant completion cannot be silently collected a second time"
+          "passed": true
         },
         {
+          "name": "main session cannot be finalized before all scheduled entries have an outcome",
           "error": "nil",
-          "passed": true,
-          "name": "main session cannot be finalized before all scheduled entries have an outcome"
+          "passed": true
         },
         {
+          "name": "clean test close permits a new unique run but never reuses an existing session path",
           "error": "nil",
-          "passed": true,
-          "name": "clean test close permits a new unique run but never reuses an existing session path"
+          "passed": true
         },
         {
+          "name": "exposure cannot be erased through cancelled_unexposed",
           "error": "nil",
-          "passed": true,
-          "name": "exposure cannot be erased through cancelled_unexposed"
+          "passed": true
         },
         {
+          "name": "duplicate terminal outcome is rejected without a second main-data row",
           "error": "nil",
-          "passed": true,
-          "name": "duplicate terminal outcome is rejected without a second video-coding row"
+          "passed": true
         },
         {
+          "name": "malformed participant markers fail closed and are preserved",
           "error": "nil",
-          "passed": true,
-          "name": "malformed participant markers fail closed and are preserved"
+          "passed": true
         },
         {
+          "name": "unsafe identifiers and invalid allocation groups are rejected before creating runs",
           "error": "nil",
-          "passed": true,
-          "name": "unsafe identifiers and invalid allocation groups are rejected before creating runs"
+          "passed": true
         },
         {
+          "name": "synced canonical titles and exact legacy aliases identify only one page per set",
           "error": "nil",
-          "passed": true,
-          "name": "synced canonical titles and exact legacy aliases identify only one page per set"
+          "passed": true
         },
         {
+          "name": "non-finite observations are rejected rather than written as valid numbers",
           "error": "nil",
-          "passed": true,
-          "name": "non-finite observations are rejected rather than written as valid numbers"
+          "passed": true
         },
         {
+          "name": "repeat/position metadata and zero/false estimates survive storage into main_data",
           "error": "nil",
-          "passed": true,
-          "name": "repeat/position metadata and zero/false estimates survive storage without final coding"
+          "passed": true
+        },
+        {
+          "name": "main_data.csv has no video-coding columns",
+          "error": "nil",
+          "passed": true
         }
       ]
     },
     {
       "suite": "controller",
       "passed": true,
-      "case_count": 75,
+      "case_count": 77,
       "cases": [
         {
           "name": "adapter blocks navigation in ready and outcome hold",
@@ -217,7 +222,7 @@
           "passed": true
         },
         {
-          "name": "adapter timeout without selection leaves final outcomes for video",
+          "name": "adapter timeout without selection records no retrieval time",
           "passed": true
         },
         {
@@ -349,11 +354,11 @@
           "passed": true
         },
         {
-          "name": "adapter main mode remains disabled until explicitly configured",
+          "name": "adapter main mode uses the shared runtime settings",
           "passed": true
         },
         {
-          "name": "adapter rejects main mode with unverified recording settings",
+          "name": "adapter main mode does not require recording profile verification",
           "passed": true
         },
         {
@@ -381,15 +386,23 @@
           "passed": true
         },
         {
-          "name": "timeout with wrong selections retains counts without inventing no-selection",
+          "name": "timeout with wrong selections retains counts and is not a no-selection trial",
           "passed": true
         },
         {
-          "name": "timeout without observable selection leaves first correctness and no-selection unknown",
+          "name": "timeout with zero observed selections is a no-selection trial",
           "passed": true
         },
         {
-          "name": "participant break does not invent technical loss",
+          "name": "completed trial is neither no-selection nor technical loss",
+          "passed": true
+        },
+        {
+          "name": "every human-started interruption is not technical loss",
+          "passed": true
+        },
+        {
+          "name": "controller or window faults count as technical loss",
           "passed": true
         },
         {
@@ -504,13 +517,13 @@
   "source_hashes": {
     "init.lua": "f467432bf90edcf3a570f57d916773896c13ace2e818a24064fc90916fee4855",
     "study/allocation.lua": "6a9078207e7d1c8e89d8128ad2764d98e42991e95eae61712b25a753d5055f81",
-    "study/config.lua": "8ea2b24c7a5ad410d646cb3397055951548f1ae30a36b0f6de5f404ce16fe172",
-    "study/controller.lua": "c0f4c408db6ebf5a8bbd7a9d36ab04c6534079c49e060233d0a57181e89ce0e9",
+    "study/config.lua": "73e2d66e452782e931369ad7d42ce61503c511c425819677d92044a39bbb6e3a",
+    "study/controller.lua": "65fb4ea26831fddde4d7b56056ed8e572044c8bdc2febc3c805185e317a1dcf0",
     "study/materials.lua": "fbc7a3ae2a041528463221f7fb8a98dca82b2dd17d1b2aefcafc8f3ac8ffd01a",
     "study/model.lua": "b034b4c9211d2a71d0fe76c462b7b176217640cf668d67d4a7bda8166a2fde10",
-    "study/storage.lua": "f2032830b225ac9eb6d628056d7e03cb136e0cce5a9c7de67a07a4661c94c9cf",
-    "tests/controller_spec.lua": "f572c83294456620f0ec27a2c7d21d2a88d7d89716d67155aa94217e9bddcc09",
-    "tests/integration_spec.lua": "c066f61022bfa836fa0f7ff594546e084617fcd054db59927c64045ababc7ce4",
+    "study/storage.lua": "0a4cb714e0c128c1f1553bd4942936e59feb1824ee33dfba817a5f8b1c384596",
+    "tests/controller_spec.lua": "69fc8455566c24355be9c04fdacf0f6e4951d039e86c941bc31b72dbedd35ac6",
+    "tests/integration_spec.lua": "33ca7152150b4527c91008e8a3caf8aec8d7278a1bf9665c3d0ae15d44360287",
     "tests/model_spec.lua": "a95a8b11422a6113b4bd158798f17ce88a3f22b945e2309f54483fd6ff30cd7d"
   }
 }

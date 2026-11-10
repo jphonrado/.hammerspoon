@@ -1,6 +1,6 @@
 -- Researcher settings. No Python or browser extension is required.
 return {
-  version = "2.2.1",
+  version = "2.3.0",
   chromeAppName = "Google Chrome",
   neutralTitle = "Study Start",
   postPromptDelaySeconds = 0.40,
@@ -8,12 +8,12 @@ return {
   mouseReleaseWaitSeconds = 2.0, -- After outcome only; never added to retrieval time.
   mouseClickDiagnostics = true, -- Buffer button events; write outside the timed interval.
   pollIntervalSeconds = 0.05,
-  pollGapWarningSeconds = 0.20, -- Flag delayed observations for OBS review.
+  pollGapWarningSeconds = 0.20, -- Log POLL_GAP when a title sample is this late (a very brief selection could be missed).
   accessibilityNotifications = true, -- Best effort, with title polling as backup.
   neutralWaitSeconds = 2.0,
   windowTolerancePixels = 3,
-  outcomeHoldSeconds = 0.30, -- Provisional: verify the correct page is visible in OBS.
-  autoDetectTarget = true, -- Auxiliary title polling; final measures come from video.
+  outcomeHoldSeconds = 0.30, -- Provisional: confirm in the pilot that the correct page is visible during the hold.
+  autoDetectTarget = true, -- Title polling is the source of the final measures; keep true for the main study.
   autoAdvance = true, -- Approved all-tabs-visible blocks continue automatically.
   interTrialDelaySeconds = 3.0, -- Masked pause before the next scheduled prompt.
   autoAdvanceAfterTimeout = true, -- Ordinary timeouts continue; interruptions never do.
@@ -22,6 +22,7 @@ return {
   maskColor = {red=0.52,green=0.52,blue=0.52,alpha=1},
   settingsPrefix = "hci2000_v2_",
   modifiers = {"ctrl","alt","cmd"},
+  -- Only relevant if an optional OBS backup recording is made; it is not coded.
   recordingProfile = {
     macOSVersion = "Tahoe 26.6.2",
     hammerspoonVersion = "UNVERIFIED",

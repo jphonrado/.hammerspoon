@@ -84,13 +84,7 @@ test("all four paper groups complete exactly 24 scheduled entries with verified 
         equal(model.phase, "SESSION_COMPLETE")
         equal(#model.outcomes, 24)
         equal(#rows(store, "trials_aux.csv"), 24)
-        local coded = rows(store, "video_coding.csv")
-        equal(#coded, 24)
-        for _, row in ipairs(coded) do
-            equal(row.retrieval_time_s, "", "Final retrieval time must await video coding")
-            equal(row.first_selection_correct, "", "Polling accuracy must not become final")
-            equal(row.total_tab_switches, "", "Polling counts must not become final")
-        end
+        equal(#rows(store, "main_data.csv"), 24)
         assert(store:close("completed"))
     end
     local count = 0
@@ -203,7 +197,7 @@ test("zero, false, missing values and quoted event text survive CSV round trip",
     equal(trial.auto_detection_elapsed_s, ""); equal(trial.manual_ack_elapsed_s, "")
 end)
 
-test("manual completion and timeout never fill final video-coded measures", function()
+test("storage does not invent measures that the record does not carry", function()
     local store = makeStore("manual-timeout")
     for index, status in ipairs({"completed_manual", "timeout"}) do
         assert(store:trial({block = 1, condition = "H-L", content_set = "A", trial = "T" .. index,
@@ -211,7 +205,7 @@ test("manual completion and timeout never fill final video-coded measures", func
             prompt_exposed = true, timed_started = true, manual_ack_elapsed_s = index == 1 and 0.9 or nil,
             aux_selection_count = 0, aux_incorrect_count = 0}))
     end
-    for _, record in ipairs(rows(store, "video_coding.csv")) do
+    for _, record in ipairs(rows(store, "main_data.csv")) do
         equal(record.retrieval_time_s, ""); equal(record.first_selection_correct, "")
         equal(record.total_tab_switches, ""); equal(record.no_selection, "")
     end
@@ -231,7 +225,7 @@ end)
 
 test("deleted run directory is reported instead of attempting a stale checkpoint", function()
     local store = makeStore("deleted-run")
-    for _, name in ipairs({"checkpoint.json", "events.csv", "trials_aux.csv", "video_coding.csv", "main_data.csv"}) do
+    for _, name in ipairs({"checkpoint.json", "events.csv", "trials_aux.csv", "main_data.csv"}) do
         assert(os.remove(store.path .. "/" .. name))
     end
     assert(os.remove(store.path .. "/session.json"))
@@ -298,13 +292,13 @@ test("exposure cannot be erased through cancelled_unexposed", function()
     equal(assert(Storage.inspectParticipant(base, "test", "TEST001", hs)).blocked, true)
 end)
 
-test("duplicate terminal outcome is rejected without a second video-coding row", function()
+test("duplicate terminal outcome is rejected without a second main-data row", function()
     local store = makeStore("duplicate-row")
     local record = {block = 1, condition = "H-L", content_set = "A", trial = "T1",
         target_id = "P1", target_title = "Target", status = "completed_auto"}
     assert(store:trial(record)); assert(not store:trial(record))
     equal(#rows(store, "trials_aux.csv"), 1)
-    equal(#rows(store, "video_coding.csv"), 1)
+    equal(#rows(store, "main_data.csv"), 1)
 end)
 
 test("malformed participant markers fail closed and are preserved", function()
@@ -367,7 +361,7 @@ test("non-finite observations are rejected rather than written as valid numbers"
     equal(#rows(store, "events.csv"), 0)
 end)
 
-test("repeat/position metadata and zero/false estimates survive storage without final coding", function()
+test("repeat/position metadata and zero/false estimates survive storage into main_data", function()
     local store = makeStore("metadata-estimates")
     local plan=store.meta.plan
     for ti, status in ipairs({"completed_auto","timeout","interrupted"}) do
@@ -385,10 +379,20 @@ test("repeat/position metadata and zero/false estimates survive storage without 
     equal(aux[1].aux_first_correct,"0");equal(aux[1].detection_mode,"poll_only")
     local main=rows(store,"main_data.csv")
     for _,r in ipairs(main) do
-        equal(r.first_selection_correct,"false");equal(r.video_verified,"false")
+        equal(r.first_selection_correct,"false")
         equal(r.no_selection,"");equal(r.technical_loss,"")
     end
-    for _,r in ipairs(rows(store,"video_coding.csv")) do equal(r.first_selection_correct,"") end
+end)
+
+test("main_data.csv has no video-coding columns", function()
+    local store = makeStore("main-columns")
+    local header = TEST_BRIDGE.read_file(store.path .. "/main_data.csv"):match("^[^\n]*")
+    assert(not header:find("video_verified", 1, true), "video_verified must be gone")
+    assert(not header:find("coder", 1, true), "coder must be gone")
+    for _, name in ipairs({"retrieval_time_s", "total_tab_switches", "incorrect_selections",
+        "first_selection_correct", "no_selection", "technical_loss"}) do
+        assert(header:find(name, 1, true), "main_data.csv must keep " .. name)
+    end
 end)
 
 return results
