@@ -1228,6 +1228,36 @@ test("queued release is preserved even when the instantaneous physical poll is a
     e.advance(0.03);eq(c.model.phase,"READY")
 end)
 
+test("release lost while the outcome is stored does not stop the session",function()
+    -- Mac regression (TEST001 T3, TEST002 T2): mouse-down passed during RUNNING, the
+    -- release happened before the outcome gate existed, so no tap ever saw it.
+    local c,e,s=fixture()
+    c.cfg.autoAdvance=true
+    running(c,e)
+    c.clickTraceTap.callback(e.mouseEvent("leftMouseDown"));e.buttons={[1]=true,left=true}
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    eq(c.model.phase,"OUTCOME")
+    e.buttons={} -- Physically released; the event never reaches c.mouseTap.
+    e.advance(Config.outcomeHoldSeconds+Config.unobservedReleaseSettleSeconds+0.05)
+    eq(c.model.phase,"READY","Physically released buttons must not trigger the release stop")
+    assert(c.autoNextPending,"Automatic flow continues")
+    local found=false
+    for _,event in ipairs(s.events) do if event.name=="MOUSE_RELEASE_UNOBSERVED" then found=true end end
+    eq(found,true,"The unobserved release must be logged")
+    eq(c.mouseTap.callback(e.mouseEvent("leftMouseDown")),true,"New masked clicks stay blocked")
+    eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),true,"A later unrelated release is not passed")
+end)
+
+test("a button still physically held after the outcome still stops safely",function()
+    local c,e,s=fixture()
+    running(c,e)
+    c.clickTraceTap.callback(e.mouseEvent("leftMouseDown"));e.buttons={[1]=true,left=true}
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    e.advance(Config.outcomeHoldSeconds+Config.mouseReleaseWaitSeconds+0.1)
+    eq(c.model.phase,"PAUSED");eq(#s.trials,1)
+    for _,event in ipairs(s.events) do assert(event.name~="MOUSE_RELEASE_UNOBSERVED") end
+end)
+
 test("matching-release protection also works with diagnostic logging disabled",function()
     local c,e,s=fixture()
     c.cfg.mouseClickDiagnostics=false

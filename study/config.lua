@@ -1,11 +1,12 @@
 -- Researcher settings. No Python or browser extension is required.
 return {
-  version = "2.3.0",
+  version = "2.3.1",
   chromeAppName = "Google Chrome",
   neutralTitle = "Study Start",
   postPromptDelaySeconds = 0.40,
   timeoutSeconds = 20,
   mouseReleaseWaitSeconds = 2.0, -- After outcome only; never added to retrieval time.
+  unobservedReleaseSettleSeconds = 0.15, -- Buttons physically up this long after the hold = release already delivered.
   mouseClickDiagnostics = true, -- Buffer button events; write outside the timed interval.
   pollIntervalSeconds = 0.05,
   pollGapWarningSeconds = 0.20, -- Log POLL_GAP when a title sample is this late (a very brief selection could be missed).

@@ -732,12 +732,34 @@ function M:finish(status,endpoint)
   local locked,err=self:lock();if not locked then return self:emergency(err) end
   -- Complete the existing click before remasking/resetting. New presses/motion
   -- stay blocked, and the release wait is outside the recorded RT interval.
+  self.releaseUpSince=nil
   local releaseDeadline=self:now()+self.cfg.outcomeHoldSeconds+self.cfg.mouseReleaseWaitSeconds
   self:after("outcome",self.cfg.outcomeHoldSeconds,function()self:settleAfterMouseRelease(status,releaseDeadline)end)
 end
 function M:settleAfterMouseRelease(status,deadline)
   if self.fatal or not self.model or self.model.phase~="OUTCOME" then return end
-  if self:mouseButtonsDown() or next(self.passMouseUps or {})~=nil then
+  local held=self:mouseButtonsDown()
+  if not held and next(self.passMouseUps or {})~=nil then
+    -- A release that happens while the outcome is being stored can reach Chrome
+    -- while no tap is listening (the RUNNING click monitor has stopped and the
+    -- outcome gate has not started yet). Physical button state is authoritative:
+    -- once every button has stayed up for a short settle period (after the hold,
+    -- so a merely queued release has already been delivered), nothing is left to pass.
+    local now=self:now()
+    self.releaseUpSince=self.releaseUpSince or now
+    if now-self.releaseUpSince>=(self.cfg.unobservedReleaseSettleSeconds or 0.15) then
+      local pending={}
+      for button in pairs(self.passMouseUps) do pending[#pending+1]=tostring(button) end
+      table.sort(pending)
+      self.passMouseUps={}
+      if self.mousePassedDown then self.mousePassedDown={} end
+      if not self:event("MOUSE_RELEASE_UNOBSERVED",{detail="Buttons physically up; release event not seen by the gate (button "
+        ..table.concat(pending,",")..")"}) then return end
+    end
+  else
+    self.releaseUpSince=nil
+  end
+  if held or next(self.passMouseUps or {})~=nil then
     if self:now()>=deadline then return self:emergency("Mouse button did not release after outcome; inspect click trace") end
     self:after("outcome",0.02,function()self:settleAfterMouseRelease(status,deadline)end)
     return

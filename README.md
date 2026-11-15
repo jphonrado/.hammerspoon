@@ -1,6 +1,6 @@
 # HCI2000 Hammerspoon study controller
 
-Controller for **Effects of Browser Tab Orientation & Tab Load on Navigation Performance**, version **2.3.0** (software-only measurement).
+Controller for **Effects of Browser Tab Orientation & Tab Load on Navigation Performance**, version **2.3.1** (software-only measurement).
 
 Hammerspoon runs this folder on the study Mac; **Python is not needed to run the experiment.** The controller masks and reveals Chrome's tab strip, plays the target prompt, runs the trial schedule, and writes the final measures itself to `main_data.csv` (retrieval time, first-selection correctness, selection counts, `no_selection`, `technical_loss`) by watching the Chrome window title. **NASA-TLX is collected separately in Google Forms.** Video is not coded; an OBS recording is an optional backup only. See `DATA_DICTIONARY.md` for exact column definitions and limits.
 
@@ -123,7 +123,7 @@ python3 tools/run_checks.py                                   # uses .dev-cache/
 python3 tools/run_checks.py --lua-python-path PATH_TO_LUPA     # or point at an isolated lupa install
 ```
 
-Expected: 10/10 Lua syntax checks, model 12, integration 25, controller 77 cases. The report is written to `.dev-cache/LOCAL_CHECKS.json` (git-ignored). Passing these checks does not replace `docs/MAC_CHECKLIST.md` on the study laptop.
+Expected: 10/10 Lua syntax checks, model 12, integration 25, controller 79 cases. The report is written to `.dev-cache/LOCAL_CHECKS.json` (git-ignored). Passing these checks does not replace `docs/MAC_CHECKLIST.md` on the study laptop.
 
 ## Open issues
 
