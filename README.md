@@ -1,63 +1,29 @@
 # HCI2000 Hammerspoon study controller
 
-Revised controller for **Effects of Browser Tab Orientation & Tab Load on Navigation Performance**.
-Version **2.3.0** (software-only measurement, 10 November 2026), built on 2.2.1 of 29 October 2026 against `implemented-hammerspoon` at `44e1b48`. See [the click/20-second update](docs/CLICK_FIX.md) and [the Orlando audit](docs/ORLANDO_AUDIT_2026-10-29.md).
+Controller for **Effects of Browser Tab Orientation & Tab Load on Navigation Performance**, version **2.3.0** (software-only measurement).
 
-## What this folder is
+Hammerspoon runs this folder on the study Mac; **Python is not needed to run the experiment.** The controller masks and reveals Chrome's tab strip, plays the target prompt, runs the trial schedule, and writes the final measures itself to `main_data.csv` (retrieval time, first-selection correctness, selection counts, `no_selection`, `technical_loss`) by watching the Chrome window title. **NASA-TLX is collected separately in Google Forms.** Video is not coded; an OBS recording is an optional backup only. See `DATA_DICTIONARY.md` for exact column definitions and limits.
 
-This is the macOS experiment controller in the `.hammerspoon` Git repository. Its repository root contains `init.lua`, `study/` and `orlando_audio/`. The Python/HTML content project is separate in `hci_exp/Tab-Sets-for-Experiment`. Hammerspoon runs this package on the study Mac; **Python is not required to run the experiment controller**. Optional Python/Lupa tools are for developer tests only.
+## Files
 
-The controller masks/reveals Chrome's tab region, plays the group's current target recordings, manages the trial schedule, and records the final measures itself in `main_data.csv` (retrieval time, first-selection correctness, selection counts, `no_selection`, `technical_loss`) by observing the Chrome window title. **NASA-TLX is collected separately through Google Forms; the controller does not collect or score it.** **Video is not coded.** An OBS recording may optionally be kept as a backup for clarifying unusual trials. See `DATA_DICTIONARY.md` for the exact definitions and their limits.
+```text
+.hammerspoon/
+  init.lua                Hammerspoon loader
+  study/config.lua        Timing, automatic-progression and main-mode settings
+  study/controller.lua    Mac UI, masks, input lock, audio and trial orchestration
+  study/model.lua         Trial-state and exposure rules
+  study/storage.lua       Record files, header checks and restart guards
+  study/materials.lua     Targets, condition orders, tab positions, titles
+  study/allocation.lua    Frozen 16-slot main allocation (P001-P016)
+  orlando_audio/          20 target prompt recordings
+  records/                Session records (test / pilot / main)
+  docs/PREPARATION.md     Block preparation sheet (target positions, tab order)
+  docs/MAC_CHECKLIST.md   Native study-Mac verification record
+  DATA_DICTIONARY.md      Record layout and column meanings
+  tests/, tools/          Developer tests (Python + lupa)
+```
 
-### Verification status
-
-The code was implemented and tested locally with Lua 5.4, simulated Hammerspoon APIs and real temporary record files. Exact test counts and source fingerprints are in `docs/LOCAL_CHECKS.json`.
-
-The local checks pass **114 Lua behavioral cases and all 10 Lua syntax checks** (12 model, 25 integration, 77 controller/loader). Run `python3 tools/run_checks.py` to regenerate `docs/LOCAL_CHECKS.json`. `docs/MILESTONES.md` tracks implementation versus native-device verification for 2A-4B.
-
-**The actual macOS/Chrome checks have not been run here.** Input permissions, audio decoding/playback, native tab geometry, mask coverage and click handling must pass `docs/MAC_CHECKLIST.md` on the study laptop. Main-study mode is disabled by default; test and pilot modes work without declaring those checks complete.
-
-| Milestone | Implemented work | Remaining study-Mac evidence |
-|---|---|---|
-| 2A | Checked fresh logs, explicit auxiliary fields, separate video-coding sheet, error propagation | Actual storage location and writable files |
-| 2B | OBS/coding procedure and reproducible dummy examples | Saved video showing overlay, pointer, audio and identifiable target-active frames |
-| 3A | Trial states, known neutral baseline, window/frame checks, masked input protection, calibration | Native Chrome/accessibility, cursor reset, mask coverage and input locking |
-| 3B | Explicit exposure handling, pauses, no silent replay, controlled block transitions | Actual break/emergency/audio-failure behavior |
-| 4A | Required coded identity, allocated group, unique run files, restart guards | Session dialogs/settings on the study Mac |
-| 4B | Frozen allocation, preparation sheet and complete simulated sessions | Complete real-device dummy sessions and participant pilot |
-
-## Changes from the original ZIP
-
-The original archive is preserved. `docs/PROVENANCE.json` identifies its hash, original `init.lua` hash, current material manifest hash and all 20 copied audio hashes. `docs/ORIGINAL_INIT.lua.txt` is an unchanged reference snapshot for comparison; do not load that old script alongside the new controller.
-
-| Original behavior | Revised behavior | Issue/milestone |
-|---|---|---|
-| One large `init.lua` mixed control, scheduling and records | Small loader plus separate configuration, materials, lifecycle, storage and Mac adapter modules | All |
-| Participant `P001`, group `3` edited directly in source | Explicit session entry; main codes load their group/practice order from the allocation roster | 4A |
-| Participant-only filenames could append after reload | New run-specific folder, active-session guard and main completion guard | 4A |
-| Supplied P001 CSVs had no usable values | Legacy logs preserved separately and not reused; new header-checked records and visible errors | 2A |
-| Automatic/hotkey times could look like final retrieval time | `auto_detection_elapsed_s` and `manual_ack_elapsed_s` separated from blank video-coded final fields | 2A |
-| Wall-clock subtraction used for elapsed intervals | Boot-relative clock for auxiliary elapsed intervals; wall time retained for record matching | 2A |
-| Detector's baseline read after input release | Verified Study Start baseline established before reveal/input release | 3A |
-| Mask placement preceded window restoration | Approved geometry verified before mask construction; size/display calibration checked | 3A |
-| Masked inter-trial periods could accept mouse input | Mouse/scroll lock during protected masked phases, explicit unlocked researcher Setup mode | 3A |
-| Neutral activation requested without confirmation | Bounded neutral-title verification; failed preparation stops before audio exposure | 3A |
-| Prompt exposure recorded only after reveal | Exposure intent checkpointed before playback; interrupted/uncertain prompts cannot silently replay | 3B |
-| Retry hotkey could replay exposed scored entries | Exposed entries get an interruption outcome and are consumed; unexposed failures retain the entry | 3B |
-| Original automatic next trial had no verified reset safeguards | Restored three-second automatic continuation inside an approved all-tabs-visible block; manual overflow fallback and explicit ratings/block boundary | 3B |
-| Immediate reset could conceal the endpoint in video | Fixed 0.30-second post-outcome display hold, excluded from retrieval time; verify/refine in pilot | 2B/3B |
-| Recalibration/settings changes possible during active phases | Calibration allowed only in Setup | 3A |
-| Reload depended on runtime-local cleanup | Actual Hammerspoon shutdown hook preserves interruption/reload guards and chains unrelated callbacks | 3B/4A |
-| Unexpected callback errors could interrupt cleanup | Guarded controls/timers/audio callbacks stop and release input on an exception | 3B |
-| No demonstrated allocation validation | 16-slot permuted-block roster, balanced practice order, preparation sheet and checks | 4B |
-
-The current conditions, group/content assignments, five target identities, six-trial schedules, common favicon and task-tab position lists are retained. The synced group changes to 24 page titles, nine target recordings, and Study Start at the LAST browser position are preserved. Exact legacy target-title aliases support the earlier HTML titles; they do not use fuzzy matching. All 20 delivered recordings match the synced baseline, including its nine replacements. History remains an extra content set outside the four scored sets.
-
-### Start-cue dependency outside this repair
-
-This package uses **the disappearance of the gray tab mask** as its operational start cue, matching the original Lua design and the group's current neutral page. It waits 0.40 seconds after the audio file ends before reveal.
-
-The supplied paper and Python-generated prompt lists still mention spoken **Go**. The spoken content of the recordings has not been transcribed/changed. Reconcile paper, instructions and recordings before main collection. These code repairs do not resolve that separate issue automatically.
+Each run is written to `records/<mode>/<participant>/<session_id>/`: `main_data.csv` (the analysis table, one row per trial), `events.csv`, `trials_aux.csv`, `session.json` and `checkpoint.json`. Participant folders also hold `ACTIVE.json` / `.session-lock/` while a session is open and `COMPLETED.json` after a main session finishes. Do not put names or consent forms here.
 
 ## Install on the study Mac
 
@@ -79,17 +45,7 @@ The repository's `init.lua` is already the loader. **Do not replace it with a li
 
 Use one dedicated Chrome study window/profile, the fixed external mouse and the intended display settings. Use direct HTML files or the documented plain static server for scored sessions rather than Live Server's injected reloading code.
 
-### Synced changes preserved before this update
-
-This release starts from the group's synced commit `ff67ebb`, not the obsolete first distribution. Its neutral-last reset (`focusTab(6/16)`, fallback `Cmd+9`), two focus regressions, revised canonical titles, and nine replacement recordings are retained. Current audio hashes and a combined materials-definition fingerprint are recorded in `docs/PROVENANCE.json`; original ZIP/audio fingerprints remain historical provenance. Audio wording and native playback were not verified here.
-
-The existing local HTML launcher still opens Study Start first. **Move Study Start to LAST before approving the block**: browser tab 6 at low load, 16 at high load. Task-page browser indices now equal task positions; do not add one. This preserves the synced Lua contract. The earlier paper's neutral-first wording/table note and launcher instructions must be synchronized separately before main collection; this update does not edit those projects.
-
-The local HTML pages also retain the earlier titles for nine scored targets. `docs/TITLE_COMPATIBILITY.json` lists the exact accepted canonical/legacy labels and all 24 page-title differences. Use one consistent title version across main participants and verify prompt/target identity; compatibility detection does not establish equal stimulus difficulty. The older statistical-analysis schedule/forms still use the earlier target labels and will need matching title metadata when that work resumes; target IDs and request order are unchanged.
-
-The original code remains in `docs/ORIGINAL_INIT.lua.txt` for comparison. Do not load it alongside the revised loader. Existing `orlando_logs/`, current `records/`, unrelated files, recordings, and Git history are preserved by the scoped local install. No Git staging, commit or remote push is performed.
-
-### Automatic progression settings
+## Automatic progression settings
 
 `study/config.lua` defaults to:
 
@@ -154,66 +110,24 @@ During input lock, use keyboard shortcuts: new mouse clicks, including the HCI m
 - Do not delete a run while Hammerspoon is still running it. The controller retains the run in memory and reports the missing record directory on its next checkpoint; stop or reload Hammerspoon first, then remove test records if needed.
 - A completely unexposed session can be cancelled cleanly. Main participants with a finalized session cannot be collected again through a fresh default session.
 
-## Files and data
-
-```text
-.hammerspoon/
-  init.lua                     Top-level Hammerspoon loader
-  study/config.lua             Timing, recording profile and main-mode switch
-  study/controller.lua         Mac UI, masks, input, audio and orchestration
-  study/model.lua              Pure trial-state and exposure rules
-  study/storage.lua            Record files, checks and restart guards
-  study/materials.lua          Existing targets/orders/positions, generated once
-  study/allocation.lua         Frozen 16-slot main allocation
-  orlando_audio/               20 current synced recordings (9 replaced by group)
-  records/                     New local test/pilot/main records
-  tools/run_checks.py          Developer-only Lua checks (Python + lupa)
-  DATA_DICTIONARY.md            CSV meanings and missing-value rules
-  docs/PREPARATION.md           Target positions and tab-order reference
-  docs/allocation.csv           Human-readable allocation/practice template
-  docs/MAC_CHECKLIST.md         Required native-device checks
-  docs/PROVENANCE.json          Original ZIP, source and audio fingerprints
-  docs/LOCAL_CHECKS.json        Local test evidence, not a Mac approval
-  examples/                    Clearly labeled simulated records
-  tests/ and tools/            Optional developer tests
-```
-
-Each new run lives under `records/<mode>/<participant>/<session_id>/` with `session.json`, `checkpoint.json`, `events.csv`, `trials_aux.csv` and `main_data.csv`. The checkpoint also records the approved frame, saved pointer, both mask calibrations, automatic block approval, and pending automatic trial identity. Checkpoints are audit snapshots, not automatic-resume authorization. Expected current-audio fingerprints and the materials-definition fingerprint identify this delivery; the source-manifest hash remains historical input provenance, and these are provenance, not a claim that playback/wording was validated on the Mac. Do not put participant names or consent forms here. See `DATA_DICTIONARY.md` for exact columns.
-
-`reveal_command_monotonic_s` records a software request, not a visible frame. `auto_detection_elapsed_s` includes observation delivery/sampling delay. Accessibility title notifications supplement the 50-ms polling backup where supported; raw logs record detector mode and actual sample gaps. `manual_ack_elapsed_s` includes facilitator reaction time. Final retrieval time is the interval from the reveal command to the first observed correct title. Completed trials satisfy `total_tab_switches = incorrect_selections + 1`.
-
-### For future developers and AI assistants
-
-- Read this README, the data dictionary, local check report and actual Mac evidence before claiming readiness.
-- Preserve existing title/topic/order/position relationships unless the research group explicitly changes the protocol.
-- Do not silently synchronize the still-conflicting paper/audio cue by editing recordings or the HTML project.
-- `materials.lua` and `allocation.lua` are versioned inputs. If regenerated, verify all mappings and update preparation sheets/tests/provenance together.
-- Keep raw controller observations distinct from final coded data. Do not invent missing selections or outcomes to force agreement.
-- Do not remove an active-session guard or auto-resume an exposed entry without documented recovery review.
-- Development tests use Lua 5.4 through optional Python `lupa`; Hammerspoon execution itself is native Lua. Example records are simulated test data, never participant results.
-
-Optional local developer check (Python with an isolated Lupa installation):
-
-```text
-python tools/run_checks.py --lua-python-path PATH_TO_ISOLATED_LUPA
-```
-
-## Method/API references
-
-- Hammerspoon boot-relative clock: https://www.hammerspoon.org/docs/hs.timer.html#absoluteTime
-- Canvas appearance versus click activation: https://www.hammerspoon.org/docs/hs.canvas.html#clickActivating
-- Input hooks: https://www.hammerspoon.org/docs/hs.eventtap.html
-- Sound loading/playback: https://www.hammerspoon.org/docs/hs.sound.html
-- Chrome tab focusing: https://www.hammerspoon.org/docs/hs.window.html#focusTab
-
-- Accessibility title notifications: https://www.hammerspoon.org/docs/hs.axuielement.observer.html
-
-These references describe APIs; they do not establish that the group's hardware/OBS configuration has passed validation.
-
 ## Google Forms
 
 NASA-TLX is collected through separate Google Forms. Join block ratings to `main_data.csv` by participant code plus condition, never by block order or row order. No form, questionnaire UI, workload scoring or audio is changed by the controller.
 
-## Click transition fix (2.2.1)
+## Developer tests
 
-The protected-phase gate now preserves a release belonging to a press that Chrome already received. Remasking and pointer/neutral reset wait for that release, bounded by a two-second post-outcome safety wait; retrieval timing has already stopped. Pre-reveal held buttons stop the exposed trial rather than leaking a partial click into it. Setup activates Chrome and reveal checks the active application as well as the study window. Buffered `MOUSE_INPUT_TRACE` events distinguish passed clicks, protected-phase blocked clicks, and passed existing releases; they are diagnostics, not tab-selection counts. `mouseClickDiagnostics=false` disables trace logging while retaining matching-release protection. See [CLICK_FIX.md](docs/CLICK_FIX.md) for the Mac reproduction procedure.
+The Lua logic is tested with simulated Hammerspoon APIs (no real Chrome, input hooks or audio):
+
+```text
+python3 tools/run_checks.py                                   # uses .dev-cache/python if present
+python3 tools/run_checks.py --lua-python-path PATH_TO_LUPA     # or point at an isolated lupa install
+```
+
+Expected: 10/10 Lua syntax checks, model 12, integration 25, controller 77 cases. The report is written to `.dev-cache/LOCAL_CHECKS.json` (git-ignored). Passing these checks does not replace `docs/MAC_CHECKLIST.md` on the study laptop.
+
+## Open issues
+
+- **Start cue:** the controller's start cue is the disappearance of the gray tab mask, 0.40 s after the prompt audio ends. The paper still describes a spoken **"Go"**. Reconcile the paper, instructions and recordings before main collection.
+- **Study Start position:** the HTML launcher opens Study Start first; move it to the **last** tab before approving each block.
+
+Earlier change history, patches and audits are in the Git history.

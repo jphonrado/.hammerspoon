@@ -25,7 +25,7 @@ def main() -> int:
     parser.add_argument("--lua-python-path", type=Path,
                         default=package / ".dev-cache" / "python")
     parser.add_argument("--report", type=Path,
-                        default=package / "docs" / "LOCAL_CHECKS.json")
+                        default=package / ".dev-cache" / "LOCAL_CHECKS.json")
     parser.add_argument("--export-examples", type=Path,
                         help="Copy the successful group-1 dummy session to a new directory.")
     parser.add_argument("--suite", action="append", choices=["model", "integration", "controller"],
