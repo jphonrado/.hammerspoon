@@ -93,8 +93,17 @@ local function fixture(group)
         if not env.neutralFails then env.title = "Study Start" end
     end
     local app = {name = function() return "Google Chrome" end,
-        isFrontmost=function()return not env.inactiveApp end,
-        activate=function()env.inactiveApp=false;env.activated=true;return true end}
+        -- activationDelay/activationBlocked model real macOS, where activation
+        -- requested by Hammerspoon can arrive late or not at all.
+        isFrontmost=function()
+            if env.activateAt and env.time>=env.activateAt then env.inactiveApp=false;env.activateAt=nil end
+            return not env.inactiveApp end,
+        activate=function()
+            env.activated=true;env.activateCalls=(env.activateCalls or 0)+1
+            if env.activationBlocked then return true end
+            if env.activationDelay then env.activateAt=env.activateAt or (env.time+env.activationDelay)
+            else env.inactiveApp=false end
+            return true end}
     local win = {}
     function win:id() return 7 end
     function win:application() return app end
@@ -1295,6 +1304,79 @@ test("pause with a held click does not leave stale button history on resume",fun
     c:setup();running(c,e)
     eq(c.model.phase,"RUNNING");eq(c.model.trialIndex,2)
     eq(c.mouseTap,nil);eq(#s.trials,1)
+end)
+
+test("Setup waits for late Chrome activation after Hammerspoon dialogs",function()
+    local c,e,s=fixture()
+    e.inactiveApp=true;e.activationDelay=0.6
+    c:approveSetup()
+    eq(e.lockEnabled,false) -- Not reported ready until Chrome is verified active.
+    e.advance(1.0)
+    eq(c.model.phase,"READY");eq(e.lockEnabled,true);eq(e.inactiveApp,false)
+    c:startTrial()
+    eq(c.model.phase,"PROMPT");eq(e.playCalls,1)
+end)
+
+test("Setup is withheld, not stopped, when Chrome never becomes active",function()
+    local c,e,s=fixture()
+    e.inactiveApp=true;e.activationBlocked=true
+    c:approveSetup()
+    e.advance((Config.activationWaitSeconds or 2)+0.5)
+    eq(c.model.phase,"SETUP");eq(c.setupApproved,false);eq(e.lockEnabled,false)
+    eq(e.playCalls,0);eq(#s.trials,0)
+    e.activationBlocked=false
+    startPrompt(c,e) -- Approving again once Chrome is active works normally.
+end)
+
+test("manual start re-activates Chrome before exposure instead of stopping",function()
+    local c,e,s=fixture()
+    c:approveSetup();eq(c.model.phase,"READY")
+    e.inactiveApp=true;e.activationDelay=0.3
+    c:startTrial()
+    eq(e.playCalls,0)
+    e.advance(1.0)
+    eq(c.model.phase,"PROMPT");eq(e.playCalls,1)
+end)
+
+test("manual start still stops if Chrome cannot be activated",function()
+    local c,e,s=fixture()
+    c:approveSetup();eq(c.model.phase,"READY")
+    e.inactiveApp=true;e.activationBlocked=true
+    c:startTrial()
+    e.advance((Config.activationWaitSeconds or 2)+0.5)
+    eq(c.model.phase,"PAUSED");eq(e.playCalls,0);eq(e.lockEnabled,false)
+end)
+
+test("a release queued during target detection still reaches Chrome and settles",function()
+    local c,e,s=fixture()
+    running(c,e)
+    -- Press passes to Chrome; the matching release is still queued in the click
+    -- observer when the title poll detects the target and ends the trial.
+    eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseDown")),false);e.buttons={[1]=true,left=true}
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    eq(c.model.phase,"OUTCOME")
+    assert(c.clickTraceTap and c.clickTraceTap.enabled,"click observer must survive until the release settles")
+    e.advance(0.1)
+    -- The queued release is delivered by the observer, then by the gate.
+    eq(c.clickTraceTap.callback(e.mouseEvent("leftMouseUp")),false)
+    e.buttons={}
+    eq(c.mouseTap.callback(e.mouseEvent("leftMouseUp")),false)
+    e.advance(Config.outcomeHoldSeconds+Config.mouseReleaseWaitSeconds)
+    assert(c.model.phase~="PAUSED","session must not stop after a normal click")
+    eq(c.clickTraceTap,nil);eq(#s.trials,1)
+end)
+
+test("block end releases the mouse for ratings and is not stopped by the watchdog",function()
+    local c,e,s=automaticFixture()
+    for trial=1,6 do
+        if trial==1 then running(c,e) else e.sound.callback(true);e.advance(Config.postPromptDelaySeconds) end
+        observedCorrect(c,e)
+        if trial<6 then settleAutomatic(c,e);e.advance(Config.interTrialDelaySeconds+0.02)
+        else e.advance(Config.outcomeHoldSeconds+0.1) end
+    end
+    eq(c.model.phase,"BLOCK_COMPLETE");eq(e.lockEnabled,false);eq(#s.trials,6)
+    e.advance(Config.lockWatchdogSeconds+5)
+    eq(c.model.phase,"BLOCK_COMPLETE")
 end)
 
 return results

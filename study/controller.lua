@@ -103,7 +103,15 @@ function M:storageFailure(err)
   self.autoBlockApproval=nil;self.autoNextPending=nil
   self:notice("STOP: recording file error. Do not restart or replay. "..tostring(err))
 end
-function M:cancelTimers()
+function M:stopClickTrace()
+  if self.clickTraceTap then self.clickTraceTap:stop();self.clickTraceTap=nil end
+end
+-- keepClickTrace: used only when a trial ends. Stopping an event tap discards
+-- any mouse event still queued to it; a participant's release that arrived
+-- while the controller was busy detecting the target (e.g. a slow Chrome
+-- accessibility read) was being destroyed, so macOS kept the button "down".
+-- The observe-only tap is now kept until that release has been settled.
+function M:cancelTimers(keepClickTrace)
   self.generation=self.generation+1
   for _,t in pairs(self.timers) do t:stop() end
   self.timers={}
@@ -112,7 +120,7 @@ function M:cancelTimers()
     local observer=self.titleObserver;self.titleObserver=nil
     pcall(function()observer:stop()end)
   end
-  if self.clickTraceTap then self.clickTraceTap:stop();self.clickTraceTap=nil end
+  if not keepClickTrace then self:stopClickTrace() end
 end
 function M:after(key,delay,fn)
   if self.timers[key] then self.timers[key]:stop() end
@@ -148,6 +156,47 @@ function M:validWindow(requireForeground)
     if not app:isFrontmost() then return nil,"Chrome is not the active application; activate it in Setup" end
   end
   return win
+end
+-- Hammerspoon's own dialogs (Researcher preflight / Automatic block flow) make
+-- Hammerspoon the active app. On recent macOS, app:activate() from a background
+-- process is not guaranteed to take effect, or takes effect late, so activation
+-- is requested, re-requested and VERIFIED before anything proceeds. Used only
+-- before exposure (Setup approval, manual start); never during a running trial
+-- or an automatic countdown, where lost focus still stops the session.
+function M:activateChrome(win)
+  local app=win:application()
+  if not app then return false end
+  pcall(function() app:activate(false) end)
+  pcall(function() win:focus() end)
+  if app:isFrontmost() then return true end
+  local hsapp=self.hs.application
+  if hsapp and hsapp.launchOrFocus then
+    pcall(function() hsapp.launchOrFocus(self.cfg.chromeAppName) end)
+    pcall(function() win:focus() end)
+  end
+  return app:isFrontmost()
+end
+function M:whenChromeActive(win,onReady,onFail)
+  self:activateChrome(win)
+  local current=self:validWindow(true)
+  if current then return onReady(current) end
+  local wait=self.cfg.activationWaitSeconds or 2.0
+  local step=self.cfg.pollIntervalSeconds or 0.05
+  local deadline=self:now()+wait
+  local lastRequest=self:now()
+  local function check()
+    local now_,reason=self:validWindow(true)
+    if now_ then return onReady(now_) end
+    if not self:validWindow(false) then return onFail(reason) end
+    if self:now()>=deadline then return onFail(reason) end
+    if self:now()-lastRequest>=0.25 then
+      local base=self:window()
+      if base then self:activateChrome(base) end
+      lastRequest=self:now()
+    end
+    self:after("activate",step,check)
+  end
+  self:after("activate",step,check)
 end
 function M:unlock()
   if self.mouseTap then self.mouseTap:stop();self.mouseTap=nil end
@@ -425,18 +474,25 @@ function M:approveSetup()
   end
   local ok,why=self.model:ready();if not ok then return self:notice(why) end
   self.setupApproved=true
-  win:application():activate(false)
-  win:focus()
-  local masked,maskErr=self:showMask()
-  if not masked then self.model:resetPreflight();self.setupApproved=false;return self:notice(maskErr) end
-  local locked,lockErr=self:lock()
-  if not locked then self:emergency(lockErr);return end
-  local detail="Orientation/order/scroll manually confirmed; "
-    ..(self.autoBlockApproval and "all-tabs-visible automatic block approved" or "manual per-trial progression")
-  if not self:event("PREFLIGHT_APPROVED",{detail=detail}) then return end
-  if not self:checkpoint() then return end
-  self:notice(self.autoBlockApproval and "Ready. Start the first trial with Ctrl+Alt+Cmd+Return; this block then continues automatically."
-    or "Ready. Press Ctrl+Alt+Cmd+Return to start this trial")
+  local blockIndex=self.model.blockIndex
+  self:whenChromeActive(win,function()
+    if self.fatal or not self.model or self.model.phase~="READY" or not self.setupApproved
+      or self.model.blockIndex~=blockIndex then return end
+    local masked,maskErr=self:showMask()
+    if not masked then self.model:resetPreflight();self.setupApproved=false;return self:notice(maskErr) end
+    local locked,lockErr=self:lock()
+    if not locked then self:emergency(lockErr);return end
+    local detail="Orientation/order/scroll manually confirmed; "
+      ..(self.autoBlockApproval and "all-tabs-visible automatic block approved" or "manual per-trial progression")
+    if not self:event("PREFLIGHT_APPROVED",{detail=detail}) then return end
+    if not self:checkpoint() then return end
+    self:notice(self.autoBlockApproval and "Ready. Start the first trial with Ctrl+Alt+Cmd+Return; this block then continues automatically."
+      or "Ready. Press Ctrl+Alt+Cmd+Return to start this trial")
+  end,function(reason)
+    if self.model and self.model.phase=="READY" then self.model:resetPreflight() end
+    self.setupApproved=false;self.autoBlockApproval=nil
+    self:notice("Setup not approved: "..tostring(reason)..". Click the Chrome study window, then approve Setup again (Ctrl+Alt+Cmd+A).")
+  end)
 end
 function M:automaticBlockValid()
   if not self.cfg.autoAdvance then return nil,"Automatic progression is disabled" end
@@ -477,7 +533,7 @@ function M:scheduleNextTrial(status)
   self:notice(string.format("Next trial in %.1f seconds. Ctrl+Alt+Cmd+P pauses; S opens Setup.",delay))
   return true
 end
-function M:startTrial(automatic)
+function M:startTrial(automatic,activationRetried)
   if not self.model or self.fatal then return self:notice("No usable session") end
   if self.autoNextPending and automatic~=true then
     return self:notice("Automatic countdown is running. Use Pause or Setup to stop it.")
@@ -496,6 +552,15 @@ function M:startTrial(automatic)
   end
   if self.model.phase~="READY" or not self.setupApproved then return self:notice("Enter Setup and approve this trial first") end
   local win,err=self:validWindow(true)
+  if not win and automatic~=true and activationRetried~=true then
+    -- Manual start, prompt not yet exposed, window/frame still valid: the only
+    -- problem is app activation, so request it again and verify before stopping.
+    local base=self:validWindow(false)
+    if base then
+      return self:whenChromeActive(base,function()self:startTrial(nil,true)end,
+        function(reason)self:emergency(reason)end)
+    end
+  end
   if not win then return self:emergency(err) end
   if self:mouseButtonsDown() then return self:emergency("Release mouse buttons before starting/resetting the trial") end
   self:cancelTimers()
@@ -725,7 +790,7 @@ function M:finish(status,endpoint)
   endpoint=endpoint or self:now()
   local ok,record=self.model:finish(status,"Outcome recorded by controller")
   if not ok then return self:notice(record) end
-  self:cancelTimers()
+  self:cancelTimers(true) -- Keep the click observer: a queued release must still be delivered.
   if not self:recordOutcome(record,status,endpoint) then return end
   self:event("TRIAL_OUTCOME",{detail=status});if self.fatal then return end
   if not self:checkpoint() then return end
@@ -764,6 +829,7 @@ function M:settleAfterMouseRelease(status,deadline)
     self:after("outcome",0.02,function()self:settleAfterMouseRelease(status,deadline)end)
     return
   end
+  self:stopClickTrace() -- Release settled; the input gate alone covers the masked pause.
   if not self:flushMouseTrace(self.model.currentRecord) then return end
   local masked,why=self:showMask()
   if not masked then return self:emergency(why) end
@@ -771,7 +837,10 @@ function M:settleAfterMouseRelease(status,deadline)
   if self.model.phase=="BLOCK_COMPLETE" then self.autoBlockApproval=nil end
   if not self:checkpoint() then return end
   if self.model.phase=="BLOCK_COMPLETE" then
-    self:notice("Block finished. Collect workload ratings, then use Next block.")
+    -- Nothing is pending until Next block: release the mouse for the NASA-TLX
+    -- form instead of leaving the gate on until the watchdog stops the session.
+    self:cancelTimers();self:unlock();self:hideMask()
+    self:notice("Block finished. Mouse released. Collect workload ratings, then press Ctrl+Alt+Cmd+N for the next block.")
   elseif not self:scheduleNextTrial(status) then
     self:notice("Trial finished. Enter Setup to reset viewport and approve the next trial.")
   end

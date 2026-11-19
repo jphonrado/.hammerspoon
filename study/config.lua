@@ -12,6 +12,7 @@ return {
   pollGapWarningSeconds = 0.20, -- Log POLL_GAP when a title sample is this late (a very brief selection could be missed).
   accessibilityNotifications = true, -- Best effort, with title polling as backup.
   neutralWaitSeconds = 2.0,
+  activationWaitSeconds = 2.0, -- Before exposure only: wait for Chrome to become the active app after Hammerspoon dialogs.
   windowTolerancePixels = 3,
   outcomeHoldSeconds = 0.30, -- Provisional: confirm in the pilot that the correct page is visible during the hold.
   autoDetectTarget = true, -- Title polling is the source of the final measures; keep true for the main study.
