@@ -20,6 +20,7 @@ return {
   interTrialDelaySeconds = 3.0, -- Masked pause before the next scheduled prompt.
   autoAdvanceAfterTimeout = true, -- Ordinary timeouts continue; interruptions never do.
   lockWatchdogSeconds = 120, -- A release stops/interrupts; it never silently continues.
+  freezePointerWhileMasked = true, -- Hold the pointer still while input is locked; it is freed the moment the mask drops.
   mainStudyEnabled = true,
   maskColor = {red=0.52,green=0.52,blue=0.52,alpha=1},
   settingsPrefix = "hci2000_v2_",

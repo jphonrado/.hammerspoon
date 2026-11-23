@@ -1415,4 +1415,56 @@ test("an on-time reveal logs no delay",function()
     for _,event in ipairs(s.events) do assert(event.name~="REVEAL_DELAYED") end
 end)
 
+test("pointer is held still while masked and freed when the mask drops",function()
+    local c,e,s=fixture()
+    e.position={x=10,y=20} -- wherever the facilitator left it
+    c:approveSetup();eq(c.model.phase,"READY")
+    e.position={x=300,y=300} -- macOS moved the on-screen pointer
+    eq(c.mouseTap.callback(e.mouseEvent("mouseMoved")),true)
+    eq(e.position.x,10);eq(e.position.y,20)
+    c:startTrial();eq(c.model.phase,"PROMPT")
+    eq(e.position.x,500);eq(e.position.y,400) -- standardized start position
+    e.position={x=700,y=60} -- participant tries to pre-position during the prompt
+    eq(c.mouseTap.callback(e.mouseEvent("mouseMoved")),true)
+    eq(e.position.x,500);eq(e.position.y,400)
+    e.position={x=650,y=50}
+    eq(c.mouseTap.callback(e.mouseEvent("leftMouseDragged")),true)
+    eq(e.position.x,500);eq(e.position.y,400)
+    e.sound.callback(true);e.advance(Config.postPromptDelaySeconds)
+    eq(c.model.phase,"RUNNING");eq(c.mouseTap,nil);eq(c.pointerPin,nil)
+    e.position={x=700,y=60} -- free to move once the tabs are visible
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    eq(s.trials[1].retrieval_time_s~=nil,true)
+end)
+
+test("pointer is held during the masked pause between trials, then reset to start",function()
+    local c,e,s=automaticFixture()
+    running(c,e)
+    e.position={x=620,y=55} -- clicked the target tab here
+    observedCorrect(c,e)
+    e.advance(c.cfg.outcomeHoldSeconds)
+    eq(c.model.phase,"READY")
+    e.position={x=100,y=600}
+    eq(c.mouseTap.callback(e.mouseEvent("mouseMoved")),true)
+    eq(e.position.x,620);eq(e.position.y,55)
+    e.advance(c.cfg.interTrialDelaySeconds+0.02)
+    eq(c.model.phase,"PROMPT");eq(e.position.x,500);eq(e.position.y,400)
+end)
+
+test("Setup and emergency release free the pointer",function()
+    local c,e=fixture()
+    c:approveSetup();assert(c.pointerPin,"locked input holds the pointer")
+    c:setup();eq(c.pointerPin,nil);eq(c.mouseTap,nil)
+    c:approveSetup();c:emergency("Emergency release");eq(c.pointerPin,nil);eq(c.mouseTap,nil)
+end)
+
+test("pointer hold can be switched off in config.lua",function()
+    local c,e=fixture()
+    c.cfg.freezePointerWhileMasked=false
+    c:approveSetup()
+    e.position={x=300,y=300}
+    eq(c.mouseTap.callback(e.mouseEvent("mouseMoved")),true) -- still blocked from Chrome
+    eq(e.position.x,300);eq(e.position.y,300) -- but not moved back
+end)
+
 return results

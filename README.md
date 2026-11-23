@@ -94,7 +94,7 @@ All letter/key shortcuts below use **Ctrl+Alt+Cmd** together. On macOS, Alt is O
 | T | Show current participant/group/block/trial/phase |
 | E | End session; exposed/interrupted sessions retain their review guard |
 
-During input lock, use keyboard shortcuts: new mouse clicks, including the HCI menu, are intentionally blocked. A release matching a press Chrome already received passes through so its click cannot get stuck. Keep click buttons released until the tabs are revealed; participants can keep holding the mouse itself. Esc with the modifiers is always the emergency release. The input-lock watchdog also stops the procedure rather than silently allowing a trial to continue.
+During input lock, use keyboard shortcuts: new mouse clicks, including the HCI menu, are intentionally blocked. A release matching a press Chrome already received passes through so its click cannot get stuck. Keep click buttons released until the tabs are revealed; participants can keep holding the mouse itself. The pointer itself is also held still while input is locked (from approval or trial start, through the prompt, and during the pause between trials) and is freed the moment the mask drops; each trial still starts from the saved pointer position. Set `freezePointerWhileMasked = false` in `study/config.lua` to turn this off. Esc with the modifiers is always the emergency release. The input-lock watchdog also stops the procedure rather than silently allowing a trial to continue.
 
 ## Breaks, failures and restarts
 

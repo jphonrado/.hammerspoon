@@ -220,6 +220,7 @@ end
 function M:unlock()
   if self.mouseTap then self.mouseTap:stop();self.mouseTap=nil end
   self.passMouseUps=nil
+  self.pointerPin=nil
   -- Emergency/Setup releases input completely. A later natural mouse-up may
   -- arrive with no observer installed; do not carry its old down into a new gate.
   if not self.clickTraceTap then self.mousePassedDown=nil end
@@ -298,6 +299,11 @@ function M:lock()
     -- A physical release can be queued while title/disk callbacks run. Retain
     -- any down our running monitor passed, even if the instantaneous poll is up.
     for button in pairs(self.mousePassedDown or {}) do self.passMouseUps[button]=true end
+    self.pointerPin=self.cfg.freezePointerWhileMasked and point(self.hs.mouse.absolutePosition()) or nil
+    local moving={}
+    for _,key in ipairs({"mouseMoved","leftMouseDragged","rightMouseDragged","otherMouseDragged"}) do
+      if types[key] then moving[types[key]]=true end
+    end
     local events={}
     for _,key in ipairs({"leftMouseDown","leftMouseUp","rightMouseDown","rightMouseUp",
       "otherMouseDown","otherMouseUp","mouseMoved","leftMouseDragged",
@@ -318,6 +324,18 @@ function M:lock()
         if self.mousePassedDown then self.mousePassedDown[button]=nil end
         self:traceMouse(event,"pass_existing_release")
         return false
+      end
+      -- Hold the pointer still while input is locked. macOS moves the on-screen
+      -- pointer before any event tap sees the movement, so blocking the event
+      -- alone does not stop it: put it straight back. absolutePosition() warps
+      -- without creating an event (no feedback loop) and re-associates the mouse,
+      -- so there is no post-warp input pause once the mask drops.
+      local pin=self.pointerPin
+      if pin and moving[typ] then
+        local at=event:location()
+        if math.abs(at.x-pin.x)>0.5 or math.abs(at.y-pin.y)>0.5 then
+          self.hs.mouse.absolutePosition(pin)
+        end
       end
       self:traceMouse(event,"blocked")
       return true
@@ -604,6 +622,7 @@ function M:startTrial(automatic,activationRetried)
     if normalizedTitle(current:title())==self.cfg.neutralTitle then
       local p=self.hs.settings.get(self.cfg.settingsPrefix.."pointer")
       self.hs.mouse.absolutePosition(p)
+      if self.cfg.freezePointerWhileMasked and self.mouseTap then self.pointerPin=point(p) end
       local actual=self.hs.mouse.absolutePosition()
       if math.abs(actual.x-p.x)>2 or math.abs(actual.y-p.y)>2 then return self:emergency("Pointer reset failed") end
       self.lastTitle=self.cfg.neutralTitle
