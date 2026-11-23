@@ -58,9 +58,9 @@ function M:guard(fn,...)
   pcall(function()self:notice("Controller stopped after an error. Input released; review records before restarting.")end)
   return nil,result
 end
-function M:notice(message)
+function M:notice(message,seconds)
   print("[HCI2000] "..tostring(message))
-  self.hs.alert.show(tostring(message),3)
+  self.hs.alert.show(tostring(message),seconds or 3)
 end
 function M:context()
   local model=self.model
@@ -134,13 +134,32 @@ function M:stopSound()
   local sound=self.sound; self.sound=nil
   if sound then sound:setCallback(nil); sound:stop() end
 end
+-- Window checks run up to 30 times a second during a trial, so they ask ONLY
+-- Chrome. hs.window.get() and hs.window.frontmostWindow() query every running
+-- application for its windows on each call (Hammerspoon documentation); one slow
+-- app (Discord, Spotify, VS Code...) then freezes Hammerspoon, and macOS switches
+-- the mouse lock off during the freeze ("Input lock was lost before reveal").
+function M:chromeApp()
+  local app=self.chromeAppCache
+  if app then
+    local ok,running=pcall(function() return app:isRunning() end)
+    if ok and running then return app end
+    self.chromeAppCache=nil
+  end
+  local hsapp=self.hs.application
+  if not hsapp or not hsapp.get then return nil end
+  app=hsapp.get(self.cfg.chromeAppName) -- application name lookup; queries no windows
+  self.chromeAppCache=app
+  return app
+end
 function M:window()
   if not self.windowID then return nil end
-  local win=self.hs.window.get(self.windowID)
-  if not win then return nil end
-  local app=win:application()
+  local app=self:chromeApp()
   if not app or app:name()~=self.cfg.chromeAppName then return nil end
-  return win
+  for _,win in ipairs(app:allWindows() or {}) do
+    if win:id()==self.windowID then return win end
+  end
+  return nil
 end
 function M:validWindow(requireForeground)
   local win=self:window()
@@ -150,10 +169,10 @@ function M:validWindow(requireForeground)
     return nil,"Study window moved/resized; restore it in Setup"
   end
   if requireForeground then
-    local front=self.hs.window.frontmostWindow()
-    if not front or front:id()~=self.windowID then return nil,"Study window lost focus" end
     local app=win:application()
-    if not app:isFrontmost() then return nil,"Chrome is not the active application; activate it in Setup" end
+    if not app or not app:isFrontmost() then return nil,"Chrome is not the active application; activate it in Setup" end
+    local focused=app:focusedWindow()
+    if not focused or focused:id()~=self.windowID then return nil,"Study window lost focus" end
   end
   return win
 end
@@ -353,6 +372,7 @@ function M:captureFrame()
   local app=self.hs.application.get(self.cfg.chromeAppName)
   local win=app and app:mainWindow()
   if not win then return self:notice("Open the dedicated Chrome study window") end
+  self.chromeAppCache=app
   self.windowID=win:id();self.approvedFrame=frame(win:frame())
   self.hs.settings.set(self.cfg.settingsPrefix.."frame",self.approvedFrame)
   self:notice("Study window/frame saved. Calibrate H and V masks in this same frame.")
@@ -617,6 +637,7 @@ function M:playPrompt()
     self.model:waitReveal()
     if not self:event("PROMPT_FINISHED") then return end
     if not self:checkpoint() then return end
+    self.revealDue=self:now()+self.cfg.postPromptDelaySeconds
     self:after("reveal",self.cfg.postPromptDelaySeconds,function() self:reveal() end)
   end)end)
   local started=sound:play()
@@ -636,11 +657,20 @@ function M:watchConfiguration()
 end
 function M:reveal()
   if self.fatal or self.model.phase~="WAIT_REVEAL" then return end
+  -- A late timer means Hammerspoon was frozen; record it (still before timing).
+  local late=self.revealDue and (self:now()-self.revealDue) or 0
+  self.revealDue=nil
+  local stall=""
+  if late>0.25 then
+    stall=string.format(" (Hammerspoon was unresponsive for about %.1f s)",late)
+    if not self:event("REVEAL_DELAYED",{elapsed_s=late,
+      detail="Reveal timer fired late: Hammerspoon's main thread was blocked"}) then return end
+  end
   local win,err=self:validWindow(true)
-  if not win then return self:emergency(err) end
+  if not win then return self:emergency(err..stall) end
   if normalizedTitle(win:title())~=self.cfg.neutralTitle then return self:emergency("Neutral page changed before reveal") end
   if not self.mouseTap or (self.mouseTap.isEnabled and not self.mouseTap:isEnabled()) then
-    return self:emergency("Input lock was lost before reveal")
+    return self:emergency("Input lock was lost before reveal"..stall)
   end
   if self:mouseButtonsDown() or next(self.passMouseUps or {})~=nil then
     return self:emergency("Mouse button held before reveal; exposed prompt will not be replayed")
@@ -869,7 +899,7 @@ function M:emergency(reason)
     self:checkpoint()
   end
   self.revealTime=nil
-  self:notice("Stopped: "..tostring(reason)..". No prompt will restart automatically. Review, then enter Setup.")
+  self:notice("Stopped: "..tostring(reason)..". No prompt will restart automatically. Review, then enter Setup.",10)
 end
 function M:nextBlock()
   if not self.model or self.fatal or self.model.phase~="BLOCK_COMPLETE" then return self:notice("Finish the current block first") end

@@ -119,6 +119,11 @@ local function fixture(group)
         return false
     end
     hs.window.get = function(id) return id == 7 and not env.windowMissing and win or nil end
+    -- Chrome-only queries used by the controller (hs.window.get is kept for test access).
+    app.allWindows=function() return env.windowMissing and {} or {win} end
+    app.focusedWindow=function() return env.front and win or nil end
+    app.isRunning=function() return true end
+    hs.application={get=function(name) return name=="Google Chrome" and app or nil end}
     hs.window.frontmostWindow = function() return env.front and win or nil end
     function env.mouseEvent(name,button)
         local ev={}
@@ -1377,6 +1382,37 @@ test("block end releases the mouse for ratings and is not stopped by the watchdo
     eq(c.model.phase,"BLOCK_COMPLETE");eq(e.lockEnabled,false);eq(#s.trials,6)
     e.advance(Config.lockWatchdogSeconds+5)
     eq(c.model.phase,"BLOCK_COMPLETE")
+end)
+
+test("trial window checks ask only Chrome, never every running app",function()
+    local c,e,s=fixture()
+    c.hs.window.get=function() error("all-application window search is too slow for the trial path") end
+    c.hs.window.frontmostWindow=function() error("all-application window search is too slow for the trial path") end
+    running(c,e)
+    e.title=c.model:currentTrial().targetTitle;c:poll()
+    e.advance(Config.outcomeHoldSeconds+0.2)
+    eq(c.fatal,false);eq(#s.trials,1)
+end)
+
+test("a frozen Hammerspoon before reveal is logged with its length and stops safely",function()
+    local c,e,s=fixture()
+    startPrompt(c,e)
+    e.sound.callback(true)
+    c.timers.reveal.at=c.timers.reveal.at+2.7 -- main thread blocked: the reveal timer fires late
+    c.mouseTap.enabled=false -- macOS switched the lock off during the freeze
+    e.advance(Config.postPromptDelaySeconds+2.8)
+    eq(c.model.phase,"PAUSED");eq(e.lockEnabled,false)
+    local delayed
+    for _,event in ipairs(s.events) do if event.name=="REVEAL_DELAYED" then delayed=event end end
+    assert(delayed and delayed.context.elapsed_s>2.6,"REVEAL_DELAYED must record the freeze")
+    local last=e.notices[#e.notices]
+    assert(last:find("Input lock was lost",1,true) and last:find("unresponsive for about 2.7 s",1,true),last)
+end)
+
+test("an on-time reveal logs no delay",function()
+    local c,e,s=fixture()
+    running(c,e)
+    for _,event in ipairs(s.events) do assert(event.name~="REVEAL_DELAYED") end
 end)
 
 return results
