@@ -14,7 +14,7 @@ Hammerspoon runs this folder on the study Mac; **Python is not needed to run the
   study/model.lua         Trial-state and exposure rules
   study/storage.lua       Record files, header checks and restart guards
   study/materials.lua     Targets, condition orders, tab positions, titles
-  study/allocation.lua    Frozen 16-slot main allocation (P001-P016)
+  study/allocation.lua    Main allocation: frozen P001-P016, then P017+ by fixed rule (no cap)
   orlando_audio/          20 target prompt recordings
   records/                Session records (test / pilot / main)
   docs/PREPARATION.md     Block preparation sheet (target positions, tab order)
@@ -65,7 +65,7 @@ Set `autoAdvance=false` to retain per-trial manual setup. Set `autoAdvanceAfterT
 
 Keep preparation and researcher answer sheets out of the participant's view. Perform calibrations and manual setup only outside a timed trial.
 
-1. **New session:** press `Ctrl+Alt+Cmd+B`, choose test/pilot/main, and enter the coded participant. Main IDs use the frozen roster; test/pilot requests the assigned group.
+1. **New session:** press `Ctrl+Alt+Cmd+B`, choose test/pilot/main, and enter the coded participant. Main IDs (P001, P002, ... with no upper limit) take their group and practice order from `study/allocation.lua`; issue them in order without skipping codes. Test/pilot requests the assigned group.
 2. Review participant, group, practice order and four blocks. Prepare the assigned topic/load/orientation with the HTML launcher, close unrelated tabs, and move **Study Start to LAST**. Follow `docs/PREPARATION.md`.
 3. Enter **Setup** (`Ctrl+Alt+Cmd+S`). Save the study window/frame with **W**, common pointer with **C**, and H/V mask corners with **H**/**V** as needed. Keep preparation outside the participant's view. Recalibrate after display/window changes.
 4. Press **A** with the same modifiers. Confirm actual tab count/order, orientation, panel width, aids, starting viewport (and OBS, if recording a backup). Then choose **All tabs visible** for automatic block flow, or **Manual trials** if scrolling/reset checks are needed. This choice records the scope of the approval accurately.

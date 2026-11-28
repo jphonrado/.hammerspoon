@@ -439,8 +439,10 @@ function M:newSession()
   if not participant:match("^[A-Z][A-Z0-9_%-]*$") or #participant>32 then
     return self:notice("Use a short uppercase code, e.g. P001 or PILOT001")
   end
-  local entry=mode=="main" and Allocation[participant]
-  if mode=="main" and not entry then return self:notice("Code is absent from the frozen main allocation") end
+  local entry=mode=="main" and Allocation.lookup(participant)
+  if mode=="main" and not entry then
+    return self:notice("Main codes are P plus three or more digits, counting up from P001 (e.g. P017, P120)")
+  end
   local group=entry and entry.group or tonumber(self:text("Allocated group: 1, 2, 3, or 4", ""))
   if not group or group%1~=0 or group<1 or group>4 then return self:notice("Group must be 1-4") end
   local plan=Materials.buildPlan(group)
@@ -457,7 +459,9 @@ function M:newSession()
   local run=os.date("!%Y%m%dT%H%M%SZ").."-"..string.format("%.0f",self.hs.timer.absoluteTime())
   local meta={schema_version="2.1",mode=mode,participant=participant,group=group,session_id=run,
     plan=plan,practice_first=entry and entry.practiceFirst or "not-main-allocation",
-    versions={controller=self.cfg.version,materials=Materials.version,manifest_sha256=Materials.manifestSha256,
+    allocation_block=entry and entry.allocationBlock or nil,
+    versions={controller=self.cfg.version,materials=Materials.version,allocation=Allocation.version,
+      manifest_sha256=Materials.manifestSha256,
       original_zip_sha256=Materials.sourceZipSha256,expected_audio_sha256=Materials.audioSha256,
       materials_definition_sha256=Materials.definitionSha256},
     settings=copy(self.cfg),start_cue="mask_disappearance",recording_status="OPTIONAL_BACKUP_NOT_CODED"}

@@ -852,11 +852,37 @@ test("adapter main mode does not require recording profile verification",functio
     eq(c.meta.group,Allocation.P001.group)
 end)
 
-test("adapter rejects an unknown main participant without asking for a random group",function()
-    local c,e = sessionFixture({"main","P999"},true,true)
-    eq(e.createCalls,0)
-    eq(c.model,nil)
-    eq(e.promptCalls,2)
+test("adapter rejects a malformed main code without asking for a random group",function()
+    for _,code in ipairs({"P000","P17","P0017","PILOT001"}) do
+        local c,e = sessionFixture({"main",code},true,true)
+        eq(e.createCalls,0,code)
+        eq(c.model,nil,code)
+        eq(e.promptCalls,2,code)
+    end
+end)
+
+test("adapter main participants past P016 obtain their allocated group and practice order",function()
+    for _,code in ipairs({"P017","P024","P100","P1000"}) do
+        local entry = assert(Allocation.lookup(code))
+        local c,e = sessionFixture({"main",code},true,true)
+        eq(e.createCalls,1,code)
+        eq(e.promptCalls,2,code.." must use its allocated group rather than another input")
+        eq(c.meta.participant,code)
+        eq(c.meta.group,entry.group,code)
+        eq(c.meta.practice_first,entry.practiceFirst,code)
+        eq(c.meta.allocation_block,entry.allocationBlock,code)
+        eq(c.meta.versions.allocation,Allocation.version)
+        eq(c.model.phase,"SETUP")
+        eq(c.model:currentBlock().name,Materials.buildPlan(entry.group)[1].name,code)
+    end
+end)
+
+test("adapter pilot sessions carry no main allocation block",function()
+    local c,e = sessionFixture({"pilot","PILOT001","3"})
+    eq(e.createCalls,1)
+    eq(c.meta.group,3)
+    eq(c.meta.practice_first,"not-main-allocation")
+    eq(c.meta.allocation_block,nil)
 end)
 
 test("adapter main participant obtains its frozen roster group and practice order",function()

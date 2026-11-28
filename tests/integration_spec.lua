@@ -137,6 +137,89 @@ test("frozen allocation has four per group, permuted blocks, balanced familiariz
     end
 end)
 
+test("original 16 allocation slots keep their frozen values", function()
+    local expected = {
+        {2, "H"}, {4, "H"}, {3, "V"}, {1, "H"}, {3, "V"}, {4, "V"}, {2, "V"}, {1, "V"},
+        {4, "H"}, {2, "V"}, {1, "V"}, {3, "H"}, {4, "V"}, {1, "H"}, {3, "H"}, {2, "H"},
+    }
+    for number, value in ipairs(expected) do
+        local code = string.format("P%03d", number)
+        local entry = assert(Allocation.lookup(code), code)
+        equal(entry.group, value[1], code .. " group")
+        equal(entry.practiceFirst, value[2], code .. " practice order")
+        equal(entry.allocationBlock, (number - 1) // 4 + 1, code .. " block")
+    end
+end)
+
+test("allocation continues past P016 without a cap and stays balanced", function()
+    equal(Allocation.groups, #Materials.orders, "One allocation group per condition order")
+    local groups, practice = {}, {}
+    local function count(entry)
+        groups[entry.group] = (groups[entry.group] or 0) + 1
+        local key = entry.group .. entry.practiceFirst
+        practice[key] = (practice[key] or 0) + 1
+    end
+    for number = 1, 16 do count(Allocation.lookup(string.format("P%03d", number))) end
+    for block = 5, 204 do
+        local inBlock, firstH = {}, 0
+        for offset = 1, 4 do
+            local code = string.format("P%03d", (block - 1) * 4 + offset)
+            local entry = assert(Allocation.lookup(code), code .. " must be allocated")
+            equal(entry.allocationBlock, block, code .. " block")
+            assert(not inBlock[entry.group], code .. ": each block needs each group once")
+            inBlock[entry.group] = true
+            assert(entry.practiceFirst == "H" or entry.practiceFirst == "V", code)
+            if entry.practiceFirst == "H" then firstH = firstH + 1 end
+            count(entry)
+        end
+        equal(firstH, 2, "H-first slots in block " .. block)
+        for group = 1, 4 do
+            equal(groups[group], block, "Group " .. group .. " count after block " .. block)
+            if block % 2 == 0 then
+                equal(practice[group .. "H"], practice[group .. "V"],
+                    "Group " .. group .. " practice balance after block " .. block)
+            end
+        end
+    end
+    for _, code in ipairs({"P999", "P1000", "P12345", "P999999999"}) do
+        local entry = assert(Allocation.lookup(code), code .. " must be allocated")
+        assert(entry.group >= 1 and entry.group <= 4, code)
+    end
+end)
+
+test("extension slots are fixed by rule (P017-P032 pinned)", function()
+    local expected = {
+        {1, "V"}, {2, "H"}, {3, "V"}, {4, "H"}, {3, "H"}, {2, "V"}, {1, "H"}, {4, "V"},
+        {2, "V"}, {4, "H"}, {1, "V"}, {3, "H"}, {3, "V"}, {2, "H"}, {4, "V"}, {1, "H"},
+    }
+    for index, value in ipairs(expected) do
+        local code = string.format("P%03d", 16 + index)
+        local entry = assert(Allocation.lookup(code), code)
+        equal(entry.group, value[1], code .. " group")
+        equal(entry.practiceFirst, value[2], code .. " practice order")
+        equal(entry.allocationBlock, 5 + (index - 1) // 4, code .. " block")
+    end
+end)
+
+test("malformed or non-canonical main codes get no allocation", function()
+    for _, code in ipairs({"P000", "P17", "P0017", "P017A", "P", "PILOT001", "p017", "Q017",
+        " P017", "P-017", "P1234567890"}) do
+        equal(Allocation.lookup(code), nil, code)
+    end
+    equal(Allocation.lookup(nil), nil, "nil code")
+    equal(Allocation.lookup(17), nil, "numeric code")
+end)
+
+test("allocation lookups return copies and code indexing still works", function()
+    local entry = Allocation.lookup("P001"); entry.group = 99
+    equal(Allocation.lookup("P001").group, 2)
+    local generated = Allocation.lookup("P017"); generated.group = 99
+    equal(Allocation.lookup("P017").group, 1)
+    equal(Allocation.P001.group, 2, "Allocation[code] remains supported")
+    equal(Allocation.P017.practiceFirst, Allocation.lookup("P017").practiceFirst)
+    equal(Allocation.code(17), "P017"); equal(Allocation.number("P017"), 17)
+end)
+
 for _, phase in ipairs({"PROMPT", "WAIT_REVEAL", "RUNNING"}) do
     test("interruption in " .. phase .. " persists exposure and consumes exactly once", function()
         local model = Model.new(Materials.buildPlan(1))

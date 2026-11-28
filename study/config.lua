@@ -1,6 +1,6 @@
 -- Researcher settings. No Python or browser extension is required.
 return {
-  version = "2.3.1",
+  version = "2.4.0",
   chromeAppName = "Google Chrome",
   neutralTitle = "Study Start",
   postPromptDelaySeconds = 0.40,

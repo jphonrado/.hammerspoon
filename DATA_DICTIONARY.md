@@ -11,7 +11,8 @@ directory is configured by the controller). Modes are `test`, `pilot`, and
 `main`. IDs contain only letters, digits, hyphens and underscores. Participant
 names and consent records do not belong in this folder.
 
-- `session.json`: participant/group/run identity, approved block plan, versions,
+- `session.json`: participant/group/run identity, `practice_first`, `allocation_block`
+  (main only), approved block plan, versions (including `allocation`),
   settings supplied by the controller, creation time and terminal session status.
 - `checkpoint.json`: most recent controller snapshot. It supports audit/recovery
   review, **not automatic replay or resume**.

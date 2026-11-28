@@ -66,7 +66,7 @@ Recording filenames/session IDs: __________
 ## 4A/4B - Sessions and complete runs
 
 - [ ] Test/pilot/main identities are separate; no names or consent records are stored with measures.
-- [ ] Main roster group and practice order match the approved allocation template.
+- [ ] Main roster group and practice order match `study/allocation.lua` (P001-P016 frozen template; P017 onward from its fixed rule).
 - [ ] Invalid/missing codes or groups cannot start; duplicate/reloaded sessions are guarded.
 - [ ] Run a complete 24-entry dummy session for each of the four groups on the Mac.
 - [ ] Targets/audio/conditions/sets agree with the preparation sheet in every block.
